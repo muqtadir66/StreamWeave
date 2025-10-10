@@ -1,0 +1,12 @@
+# Dependencies
+/node_modules
+
+# Build output
+/dist
+
+# Other large or generated folders/files
+/node
+node.zip
+
+# VS Code editor settings
+/.vscode
