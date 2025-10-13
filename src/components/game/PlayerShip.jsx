@@ -1,16 +1,28 @@
 import React from 'react'
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useGameStore } from '../../stores/gameStore'
+import * as THREE from 'three';
 
-// Arcade: 3x3 lanes (top/middle/bottom x left/center/right)
-function PlayerShip({ laneImpulseX = 0, laneImpulseY = 0, active = true }) {
+// Optimized geometry settings for the ship
+const wingShape = new THREE.Shape();
+wingShape.moveTo(0, 0);
+wingShape.lineTo(12, 0);
+wingShape.lineTo(8, -12);
+wingShape.lineTo(0, -10);
+wingShape.closePath();
+const extrudeSettings = { depth: 0.7, bevelEnabled: false };
+
+function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
   const shipRef = useRef()
-  const bankAngle = Math.PI / 6
   const [keys, setKeys] = useState({ left: false, right: false, up: false, down: false })
   const setShipPos = useGameStore((s) => s.setShipPos)
   const status = useGameStore((s) => s.status)
   const { camera, viewport } = useThree()
+
+  // Ship physics state
+  const velocity = useMemo(() => new THREE.Vector3(), [])
+  const shipPos = useMemo(() => new THREE.Vector3(), [])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -33,93 +45,138 @@ function PlayerShip({ laneImpulseX = 0, laneImpulseY = 0, active = true }) {
     }
   }, [])
 
-  const posRef = useRef({ x: 0, y: 0, z: 0 })
-  const targetXRef = useRef(0)
-  const targetYRef = useRef(0)
-  const laneIndexXRef = useRef(1) // 0..2
-  const laneIndexYRef = useRef(1) // 0..2
-  const lanesX = [-10, 0, 10]
-  const lanesY = [8, 0, -8]
-
-  // apply keyboard lane changes
-  useEffect(() => {
-    if (keys.left) laneIndexXRef.current = Math.max(0, laneIndexXRef.current - 1)
-    if (keys.right) laneIndexXRef.current = Math.min(lanesX.length - 1, laneIndexXRef.current + 1)
-  }, [keys.left, keys.right])
-  useEffect(() => {
-    if (keys.up) laneIndexYRef.current = Math.max(0, laneIndexYRef.current - 1)
-    if (keys.down) laneIndexYRef.current = Math.min(lanesY.length - 1, laneIndexYRef.current + 1)
-  }, [keys.up, keys.down])
-
-  // apply swipe lane impulse
-  useEffect(() => {
-    if (!laneImpulseX) return
-    if (laneImpulseX < 0) laneIndexXRef.current = Math.max(0, laneIndexXRef.current - 1)
-    if (laneImpulseX > 0) laneIndexXRef.current = Math.min(lanesX.length - 1, laneIndexXRef.current + 1)
-  }, [laneImpulseX])
-  useEffect(() => {
-    if (!laneImpulseY) return
-    if (laneImpulseY < 0) laneIndexYRef.current = Math.min(lanesY.length - 1, laneIndexYRef.current + 1) // swipe down -> positive y downwards in screen, but lanesY index increases downward
-    if (laneImpulseY > 0) laneIndexYRef.current = Math.max(0, laneIndexYRef.current - 1)
-  }, [laneImpulseY])
-
   useFrame((state, delta) => {
     if (!shipRef.current) return
-    if (!active || status !== 'running') return
+    if (!active || status !== 'running') {
+        velocity.set(0,0,0);
+        return
+    }
+    
+    // Define movement constants
+    const acceleration = 120.0;
+    const damping = -4.0;
 
-    // Compute dynamic viewport bounds at ship depth
-    const vp = viewport.getCurrentViewport(camera, shipRef.current.position)
-    const boundX = (vp.width * 0.5) - 1.2 // margin so ship never clips
-    const boundY = (vp.height * 0.5) - 1.2
+    // Reset acceleration
+    const accel = new THREE.Vector3(0,0,0);
+    
+    // Keyboard controls
+    if (keys.left) accel.x -= 1;
+    if (keys.right) accel.x += 1;
+    if (keys.up) accel.y += 1;
+    if (keys.down) accel.y -= 1;
+    
+    // Mobile joystick controls
+    accel.x += mobileSteer.x;
+    accel.y += mobileSteer.y;
 
-    // Update target lane positions and smooth toward them
-    targetXRef.current = Math.min(boundX, Math.max(-boundX, lanesX[laneIndexXRef.current]))
-    targetYRef.current = Math.min(boundY, Math.max(-boundY, lanesY[laneIndexYRef.current]))
-    const lerp = (a, b, t) => a + (b - a) * t
-    posRef.current.x = lerp(posRef.current.x, targetXRef.current, Math.min(1, 10 * delta))
-    posRef.current.y = lerp(posRef.current.y, targetYRef.current, Math.min(1, 10 * delta))
+    // Apply acceleration
+    velocity.addScaledVector(accel.normalize(), acceleration * delta);
+    
+    // Apply damping (drag)
+    const dampingForce = velocity.clone().multiplyScalar(damping * delta)
+    velocity.add(dampingForce)
 
-    shipRef.current.position.set(posRef.current.x, posRef.current.y, 0)
+    // Update position
+    shipPos.addScaledVector(velocity, delta)
 
-    // expressive banking based on movement toward target lane
-    const dx = targetXRef.current - posRef.current.x
-    const dy = targetYRef.current - posRef.current.y
-    shipRef.current.rotation.z = -dx * 0.08
-    shipRef.current.rotation.x = dy * 0.06
-    shipRef.current.rotation.y = -dx * 0.04
+    // Define the playable field boundaries
+    const boundX = 15 - 2; // Half of the fixed 30-unit spawnVolume.x, with a margin
+    const vp = viewport.getCurrentViewport(camera, shipRef.current.position);
+    const boundY = (vp.height * 0.5) - 2; // Vertical bound is dynamic for different aspect ratios
+    
+    shipPos.x = Math.max(-boundX, Math.min(boundX, shipPos.x));
+    shipPos.y = Math.max(-boundY, Math.min(boundY, shipPos.y));
+    
+    shipRef.current.position.copy(shipPos);
 
-    // publish for camera & collisions
-    setShipPos({ ...posRef.current })
+    // Expressive banking based on velocity
+    shipRef.current.rotation.z = -velocity.x * 0.05;
+    shipRef.current.rotation.x = velocity.y * 0.03;
+    shipRef.current.rotation.y = -velocity.x * 0.02;
+
+    // Publish for camera & collisions
+    setShipPos(shipPos)
   })
 
   return (
     <group ref={shipRef}>
-      {/* Lane highlight ring */}
-      <mesh rotation={[0,0,0]} position={[0,0,0]}>
-        <ringGeometry args={[1.2, 1.8, 24]} />
-        <meshBasicMaterial color="#5ec8ff" transparent opacity={0.6} depthWrite={false} />
-      </mesh>
-      {/* Fuselage */}
-      <mesh>
-        <cylinderGeometry args={[0.4, 0.6, 2, 12]} />
-        <meshStandardMaterial color="#9ec1ff" metalness={0.3} roughness={0.2} emissive="#0af" emissiveIntensity={0.2} />
-      </mesh>
-      {/* Wings */}
-      <mesh position={[1.2, 0, 0]}>
-        <boxGeometry args={[2.2, 0.15, 0.8]} />
-        <meshStandardMaterial color="#aaf" metalness={0.2} roughness={0.3} />
-      </mesh>
-      <mesh position={[-1.2, 0, 0]}>
-        <boxGeometry args={[2.2, 0.15, 0.8]} />
-        <meshStandardMaterial color="#aaf" metalness={0.2} roughness={0.3} />
-      </mesh>
-      {/* Engine glow */}
-      <mesh position={[0, 0, -1.1]}
-            scale={[1, 1, 1.6]}
-            rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.2, 0.1, 0.5, 12]} />
-        <meshStandardMaterial color="#ffb347" emissive="#ff7a00" emissiveIntensity={0.9} />
-      </mesh>
+      <group scale={0.15} rotation={[0, Math.PI, 0]}>
+        {/* Main Hull */}
+        <mesh>
+          <boxGeometry args={[14, 4, 20]} />
+          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+        </mesh>
+        {/* Cockpit */}
+        <mesh position={[0, 2.5, 5]}>
+          <boxGeometry args={[5, 1.5, 7]} />
+          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+        </mesh>
+        {/* Canopy */}
+        <mesh position={[0, 3.3, 5.5]} rotation={[-Math.PI / 2.2, 0, 0]}>
+          <planeGeometry args={[3.5, 5]} />
+          <meshStandardMaterial color={0x111827} roughness={0.1} metalness={0.8} />
+        </mesh>
+        {/* Wing base structure */}
+        <mesh position={[0, -0.5, -4]}>
+          <boxGeometry args={[22, 2, 8]} />
+          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+        </mesh>
+        {/* Wings */}
+        <mesh position={[-10, 0.2, 2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <extrudeGeometry args={[wingShape, extrudeSettings]} />
+          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+        </mesh>
+        <mesh position={[10, 0.2, 2]} rotation={[-Math.PI / 2, Math.PI, 0]}>
+          <extrudeGeometry args={[wingShape, extrudeSettings]} />
+          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+        </mesh>
+        {/* Dark panels on wings */}
+        <mesh position={[-10, 0.95, 2]} rotation={[-Math.PI / 2, 0, 0]} scale={[0.9, 0.9, 0.9]}>
+          <shapeGeometry args={[wingShape]} />
+          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
+        </mesh>
+        <mesh position={[10, 0.95, 2]} rotation={[-Math.PI / 2, Math.PI, 0]} scale={[0.9, 0.9, 0.9]}>
+          <shapeGeometry args={[wingShape]} />
+          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
+        </mesh>
+        {/* Engine Block */}
+        <mesh position={[0, 0, -11]}>
+          <boxGeometry args={[9, 6, 5]} />
+          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
+        </mesh>
+        {/* Engines */}
+        {
+          [
+            { x: -2.5, y: 1.5, z: -13 }, { x: 2.5, y: 1.5, z: -13 },
+            { x: -2.5, y: -1.5, z: -13 }, { x: 2.5, y: -1.5, z: -13 }
+          ].map((pos, i) => (
+            <group key={i}>
+              <mesh position={[pos.x, pos.y, pos.z + 1]} rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[1, 1.2, 2, 12]} />
+                <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+              </mesh>
+              <mesh position={[pos.x, pos.y, pos.z - 0.01]}>
+                <circleGeometry args={[0.9, 12]} />
+                <meshBasicMaterial color={0x56a1ff} toneMapped={false} />
+              </mesh>
+            </group>
+          ))
+        }
+        {/* Top Detail */}
+        <mesh position={[0, 2.2, -1.5]}>
+          <boxGeometry args={[3, 0.5, 3]} />
+          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
+        </mesh>
+        {/* Accent Stripes */}
+        <mesh position={[2.6, 2.5, 7.5]} rotation={[0, 0.1, 0]}>
+          <boxGeometry args={[0.2, 0.2, 5]} />
+          <meshStandardMaterial color={0xf9a825} metalness={0.8} roughness={0.3} emissive={0xf9a825} emissiveIntensity={0.2} />
+        </mesh>
+        <mesh position={[-2.6, 2.5, 7.5]} rotation={[0, -0.1, 0]}>
+          <boxGeometry args={[0.2, 0.2, 5]} />
+          <meshStandardMaterial color={0xf9a825} metalness={0.8} roughness={0.3} emissive={0xf9a825} emissiveIntensity={0.2} />
+        </mesh>
+      </group>
     </group>
   )
 }
