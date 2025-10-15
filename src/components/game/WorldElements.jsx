@@ -62,11 +62,12 @@ function AtmosphericGlow() {
 
 // --- MAIN WORLD ELEMENTS COMPONENT ---
 const createAsteroidGeometry = () => {
-    const geo = new THREE.IcosahedronGeometry(1.4, 1);
+    // Use a low-poly base for sharp edges, with subtle noise
+    const geo = new THREE.IcosahedronGeometry(1.0, 0); 
     const vertices = geo.attributes.position.array;
     for (let i = 0; i < vertices.length; i += 3) {
         const x = vertices[i], y = vertices[i+1], z = vertices[i+2];
-        const noise = 0.8 + Math.random() * 0.8;
+        const noise = 0.1 + Math.random() * 0.2; // Reduced noise for more defined shapes
         const vec = new THREE.Vector3(x, y, z).normalize().multiplyScalar(noise);
         vertices[i] += vec.x;
         vertices[i+1] += vec.y;
@@ -105,7 +106,7 @@ function WorldElements() {
         const x = (Math.random() - 0.5) * spawnVolume.x;
         const y = (Math.random() - 0.5) * spawnVolume.y;
         const z = -Math.random() * spawnVolume.z - 40;
-        const scale = 0.8 + Math.random() * 1.5;
+        const scale = 1.2 + Math.random() * 2.5; // Reverted to original, larger size
         arr.push({ 
             position: new THREE.Vector3(x, y, z), 
             spin: new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5),
@@ -146,7 +147,8 @@ function WorldElements() {
         const dx = Math.abs(shipPos.x - o.position.x), dy = Math.abs(shipPos.y - o.position.y), dz = Math.abs(shipPos.z - o.position.z);
         
         const shipRadius = 1.8;
-        const hit = dx < (shipRadius + o.scale) && dy < (shipRadius + o.scale) && dz < (shipRadius + o.scale)
+        // The critical change: a smaller, more forgiving hitbox multiplier (0.6)
+        const hit = dx < (shipRadius + o.scale * 0.6) && dy < (shipRadius + o.scale * 0.6) && dz < (shipRadius + o.scale * 0.6)
         if (hit) {
           setShake(0.9);
           crash();
@@ -187,7 +189,7 @@ function WorldElements() {
         <meshStandardMaterial color="#222222" roughness={0.8} metalness={0.9} />
       </instancedMesh>
       <instancedMesh ref={coreRef} args={[baseAsteroidGeometry, undefined, obstacleCount]}>
-        <meshBasicMaterial color="#ff4060" toneMapped={false} />
+        <meshBasicMaterial color="#ff4060" />
       </instancedMesh>
     </>
   )
