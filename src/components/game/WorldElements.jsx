@@ -36,7 +36,7 @@ function AtmosphericGlow() {
       materialRef.current.uniforms.uTime.value = clock.elapsedTime;
     }
   });
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: new THREE.Color('#89d0ff') } }), []);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: new THREE.Color('#990000') } }), []);
   return (
     <mesh position={[0, 10, -300]} scale={250}>
       <planeGeometry args={[1, 1]} />

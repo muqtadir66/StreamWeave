@@ -8,6 +8,7 @@ import PlayerShip from './PlayerShip'
 import WorldElements from './WorldElements'
 import CameraRig from './CameraRig'
 import SceneEffects from './SceneEffects.jsx'
+import MainMenu from './MainMenu'
 import { useGameStore } from '../../stores/gameStore'
 
 function GameLoop() {
@@ -103,49 +104,229 @@ function Scene() {
         {highQuality && <SceneEffects />}
       </Canvas>
 
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 3, display: 'flex', gap: 8 }}>
-        <button onClick={toggleHighQuality}>
-          {highQuality ? 'High' : 'Low'} Quality
-        </button>
-      </div>
-
-      <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 3, textAlign: 'right', fontFamily: "'Consolas', 'Monaco', monospace", fontSize: 16, lineHeight: 1.4, textShadow: '0 0 8px rgba(0, 246, 255, 0.7)' }}>
-        <div>Score: {Math.floor(score)}</div>
-        <div>Best: {best}</div>
-      </div>
-
-      {(status === 'idle' || status === 'crashed') && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3, background: 'rgba(10, 20, 40, 0.2)', backdropFilter: 'blur(10px)' }}>
-          <div style={{ textAlign: 'center', color: '#00f6ff' }}>
-            <h1 style={{ fontSize: '4em', margin: 0, textShadow: '0 0 15px rgba(0, 246, 255, 0.8)' }}>
-                {status === 'idle' ? 'StreamWeave' : 'CRASHED'}
-            </h1>
-            {status === 'crashed' && (
-              <div style={{ fontSize: '1.5em', margin: '10px 0 20px', textShadow: '0 0 8px rgba(0, 246, 255, 0.7)' }}>Score: {Math.floor(score)} • Best: {best}</div>
-            )}
-            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: status === 'idle' ? '20px' : 0 }}>
-              {status === 'crashed' && <button onClick={reset}>MENU</button>}
-              <button onClick={start} style={{ color: '#fff', borderColor: '#fff' }}>{status === 'idle' ? 'START' : 'RETRY'}</button>
+      {/* Enhanced Game HUD */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
+        pointerEvents: 'none'
+      }}>
+        {/* Top HUD Bar */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '15px 25px',
+          background: 'linear-gradient(180deg, rgba(0, 10, 20, 0.8) 0%, transparent 100%)',
+          backdropFilter: 'blur(10px)',
+          borderBottom: '1px solid rgba(0, 246, 255, 0.2)'
+        }}>
+          {/* Left side - System status */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px',
+            fontFamily: "'Courier New', 'Consolas', monospace",
+            fontSize: '14px',
+            color: '#00f6ff'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '4px 12px',
+              background: status === 'running' ? 'rgba(0, 246, 255, 0.2)' : 'rgba(153, 0, 0, 0.2)',
+              border: `1px solid ${status === 'running' ? 'rgba(0, 246, 255, 0.5)' : 'rgba(153, 0, 0, 0.5)'}`,
+              borderRadius: '15px'
+            }}>
+              <div style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: status === 'running' ? '#00f6ff' : '#ff4444',
+                boxShadow: `0 0 8px ${status === 'running' ? 'rgba(0, 246, 255, 0.8)' : 'rgba(255, 68, 68, 0.8)'}`
+              }} />
+              <span>STATUS: {status === 'running' ? 'ACTIVE' : 'STANDBY'}</span>
             </div>
-            <div style={{ marginTop: 30, opacity: 0.6, fontSize: 12, fontFamily: 'sans-serif', letterSpacing: '1px' }}>
-                Enter: Start • Esc: Crash • R: Reset • Space: Boost
+          </div>
+
+          {/* Right side - Score display */}
+          <div style={{
+            textAlign: 'right',
+            fontFamily: "'Courier New', 'Consolas', monospace",
+            pointerEvents: 'auto'
+          }}>
+            <div style={{
+              fontSize: '18px',
+              color: '#00f6ff',
+              textShadow: '0 0 10px rgba(0, 246, 255, 0.8)',
+              marginBottom: '2px'
+            }}>
+              SCORE: {Math.floor(score)}
+            </div>
+            <div style={{
+              fontSize: '14px',
+              color: 'rgba(0, 246, 255, 0.7)',
+              textShadow: '0 0 5px rgba(0, 246, 255, 0.5)'
+            }}>
+              BEST: {best}
             </div>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* New Main Menu Component */}
+      <MainMenu />
       
       {status === 'running' && (
         <>
-            <div {...bind()} style={{ position: 'absolute', bottom: 20, left: 'calc(15vw - 55px)', width: 110, height: 110, background: 'rgba(0, 246, 255, 0.1)', border: '1px solid rgba(0, 246, 255, 0.3)', borderRadius: '50%', zIndex: 3}}>
-                <div style={{ position: 'absolute', top: 55, left: 55, width: 24, height: 24, background: '#00f6ff', boxShadow: '0 0 10px rgba(0, 246, 255, 0.8)', borderRadius: '50%', transform: `translate(-50%, -50%) translate(${mobileSteer.x * 30}px, ${-mobileSteer.y * 30}px)` }}/>
+          {/* Enhanced Mobile Steering Control */}
+          <div style={{
+            position: 'absolute',
+            bottom: '20px',
+            left: 'calc(15vw - 75px)',
+            width: '150px',
+            height: '150px',
+            zIndex: 10,
+            pointerEvents: 'auto'
+          }}>
+            <div {...bind()} style={{
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(circle, rgba(0, 246, 255, 0.2) 0%, rgba(0, 246, 255, 0.05) 70%, transparent 100%)',
+              border: '2px solid rgba(0, 246, 255, 0.4)',
+              borderRadius: '50%',
+              position: 'relative',
+              transition: 'all 0.1s ease-out'
+            }}>
+              {/* Outer ring indicators */}
+              <div style={{
+                position: 'absolute',
+                top: '10px',
+                left: '10px',
+                right: '10px',
+                bottom: '10px',
+                border: '1px solid rgba(0, 246, 255, 0.2)',
+                borderRadius: '50%'
+              }} />
+              <div style={{
+                position: 'absolute',
+                top: '25px',
+                left: '25px',
+                right: '25px',
+                bottom: '25px',
+                border: '1px solid rgba(0, 246, 255, 0.1)',
+                borderRadius: '50%'
+              }} />
+
+              {/* Center control dot */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: '20px',
+                height: '20px',
+                background: '#00f6ff',
+                border: '2px solid #ffffff',
+                borderRadius: '50%',
+                transform: 'translate(-50%, -50%)',
+                transition: 'all 0.1s ease-out',
+                boxShadow: '0 0 15px rgba(0, 246, 255, 0.9)',
+                transform: `translate(-50%, -50%) translate(${mobileSteer.x * 40}px, ${-mobileSteer.y * 40}px)`
+              }} />
+
+              {/* Direction indicators */}
+              {mobileSteer.x !== 0 || mobileSteer.y !== 0 ? (
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  width: '2px',
+                  height: '2px',
+                  background: '#00f6ff',
+                  borderRadius: '50%',
+                  boxShadow: '0 0 10px #00f6ff',
+                  transform: `translate(-50%, -50%) translate(${mobileSteer.x * 45}px, ${-mobileSteer.y * 45}px)`
+                }} />
+              ) : null}
             </div>
-            <button 
-                onPointerDown={() => setBoosting(true)}
-                onPointerUp={() => setBoosting(false)}
-                style={{ position: 'absolute', bottom: 30, right: 30, width: 80, height: 80, borderRadius: '50%', zIndex: 3 }}
+          </div>
+
+          {/* Enhanced Boost Button */}
+          <div style={{
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 10,
+            pointerEvents: 'auto'
+          }}>
+            <button
+              onPointerDown={() => setBoosting(true)}
+              onPointerUp={() => setBoosting(false)}
+              style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                border: '2px solid #ff4444',
+                background: 'radial-gradient(circle, rgba(255, 68, 68, 0.3) 0%, rgba(255, 68, 68, 0.1) 50%, transparent 100%)',
+                color: '#ff4444',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                fontFamily: "'Courier New', 'Consolas', monospace",
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textShadow: '0 0 8px rgba(255, 68, 68, 0.8)',
+                boxShadow: '0 0 20px rgba(255, 68, 68, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column'
+              }}
             >
-                BOOST
+              <div style={{ fontSize: '8px', opacity: 0.8 }}>THRUST</div>
+              <div style={{ fontSize: '14px' }}>BOOST</div>
+              <div style={{
+                position: 'absolute',
+                top: '5px',
+                left: '5px',
+                right: '5px',
+                bottom: '5px',
+                border: '1px solid rgba(255, 68, 68, 0.3)',
+                borderRadius: '50%'
+              }} />
             </button>
+          </div>
+
+          {/* Bottom HUD Bar */}
+          <div style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            pointerEvents: 'none'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '10px 20px',
+              background: 'linear-gradient(0deg, rgba(0, 10, 20, 0.8) 0%, transparent 100%)',
+              backdropFilter: 'blur(10px)',
+              borderTop: '1px solid rgba(0, 246, 255, 0.2)'
+            }}>
+              <div style={{
+                fontFamily: "'Courier New', 'Consolas', monospace",
+                fontSize: '12px',
+                color: 'rgba(0, 246, 255, 0.7)',
+                textAlign: 'center'
+              }}>
+                <div>🕹️ Touch: Steer • Press: Boost • Enter: Menu • Esc: Stop</div>
+              </div>
+            </div>
+          </div>
         </>
       )}
 
