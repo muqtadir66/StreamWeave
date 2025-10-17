@@ -4,23 +4,31 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useGameStore } from '../../stores/gameStore'
 import * as THREE from 'three';
 
-// Optimized geometry settings for the ship
-const wingShape = new THREE.Shape();
-wingShape.moveTo(0, 0);
-wingShape.lineTo(12, 0);
-wingShape.lineTo(8, -12);
-wingShape.lineTo(0, -10);
-wingShape.closePath();
-const extrudeSettings = { depth: 0.7, bevelEnabled: false };
+const createAsteroidGeometry = () => {
+    const geo = new THREE.IcosahedronGeometry(1.0, 0); 
+    const vertices = geo.attributes.position.array;
+    for (let i = 0; i < vertices.length; i += 3) {
+        const x = vertices[i], y = vertices[i+1], z = vertices[i+2];
+        const noise = 0.1 + Math.random() * 0.2;
+        const vec = new THREE.Vector3(x, y, z).normalize().multiplyScalar(noise);
+        vertices[i] += vec.x;
+        vertices[i+1] += vec.y;
+        vertices[i+2] += vec.z;
+    }
+    geo.computeVertexNormals();
+    return geo;
+}
 
 function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
   const shipRef = useRef()
+  const engineGlowL = useRef()
+  const engineGlowR = useRef()
   const [keys, setKeys] = useState({ left: false, right: false, up: false, down: false })
   const setShipPos = useGameStore((s) => s.setShipPos)
   const status = useGameStore((s) => s.status)
+  const isBoosting = useGameStore((s) => s.isBoosting)
   const { camera, viewport } = useThree()
 
-  // Ship physics state
   const velocity = useMemo(() => new THREE.Vector3(), [])
   const shipPos = useMemo(() => new THREE.Vector3(), [])
 
@@ -52,129 +60,73 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
         return
     }
     
-    // Define movement constants
     const acceleration = 120.0;
     const damping = -4.0;
-
-    // Reset acceleration
     const accel = new THREE.Vector3(0,0,0);
     
-    // Keyboard controls
     if (keys.left) accel.x -= 1;
     if (keys.right) accel.x += 1;
     if (keys.up) accel.y += 1;
     if (keys.down) accel.y -= 1;
     
-    // Mobile joystick controls
     accel.x += mobileSteer.x;
     accel.y += mobileSteer.y;
 
-    // Apply acceleration
-    velocity.addScaledVector(accel.normalize(), acceleration * delta);
-    
-    // Apply damping (drag)
+    if (accel.length() > 0) velocity.addScaledVector(accel.normalize(), acceleration * delta);
     const dampingForce = velocity.clone().multiplyScalar(damping * delta)
     velocity.add(dampingForce)
-
-    // Update position
     shipPos.addScaledVector(velocity, delta)
 
-    // Define the playable field boundaries
-    const boundX = 15 - 2; // Half of the fixed 30-unit spawnVolume.x, with a margin
-    const vp = viewport.getCurrentViewport(camera, shipRef.current.position);
-    const boundY = (vp.height * 0.5) - 2; // Vertical bound is dynamic for different aspect ratios
+    // Define the fixed playable field boundaries
+    const boundX = 15 - 2; // Half of the 30-unit horizontal spawn volume
+    const boundY = 17.5 - 2; // Half of the 35-unit vertical spawn volume
     
     shipPos.x = Math.max(-boundX, Math.min(boundX, shipPos.x));
     shipPos.y = Math.max(-boundY, Math.min(boundY, shipPos.y));
     
     shipRef.current.position.copy(shipPos);
 
-    // Expressive banking based on velocity
     shipRef.current.rotation.z = -velocity.x * 0.05;
     shipRef.current.rotation.x = velocity.y * 0.03;
     shipRef.current.rotation.y = -velocity.x * 0.02;
 
-    // Publish for camera & collisions
+    // Engine flare logic
+    const targetScale = isBoosting ? 1.8 : 1;
+    const targetIntensity = isBoosting ? 2.5 : 1.2;
+    [engineGlowL, engineGlowR].forEach(ref => {
+        if(ref.current) {
+            ref.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+            ref.current.material.emissiveIntensity = THREE.MathUtils.lerp(ref.current.material.emissiveIntensity, targetIntensity, 0.1);
+        }
+    });
+
     setShipPos(shipPos)
   })
 
   return (
     <group ref={shipRef}>
       <group scale={0.15} rotation={[0, Math.PI, 0]}>
-        {/* Main Hull */}
+        {/* Simplified Ship Model */}
         <mesh>
           <boxGeometry args={[14, 4, 20]} />
-          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
         </mesh>
-        {/* Cockpit */}
         <mesh position={[0, 2.5, 5]}>
           <boxGeometry args={[5, 1.5, 7]} />
-          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial color="#c0c0c0" metalness={0.8} roughness={0.2} />
         </mesh>
-        {/* Canopy */}
         <mesh position={[0, 3.3, 5.5]} rotation={[-Math.PI / 2.2, 0, 0]}>
           <planeGeometry args={[3.5, 5]} />
-          <meshStandardMaterial color={0x111827} roughness={0.1} metalness={0.8} />
+          <meshStandardMaterial color="#111827" roughness={0.1} metalness={0.8} />
         </mesh>
-        {/* Wing base structure */}
-        <mesh position={[0, -0.5, -4]}>
-          <boxGeometry args={[22, 2, 8]} />
-          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
+        {/* Engine Glows */}
+        <mesh ref={engineGlowL} position={[-2.5, 0, -11.5]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.8, 0.1, 2, 16]} />
+            <meshStandardMaterial color="#ffb347" emissive="#ff7a00" emissiveIntensity={1.2} />
         </mesh>
-        {/* Wings */}
-        <mesh position={[-10, 0.2, 2]} rotation={[-Math.PI / 2, 0, 0]}>
-          <extrudeGeometry args={[wingShape, extrudeSettings]} />
-          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
-        </mesh>
-        <mesh position={[10, 0.2, 2]} rotation={[-Math.PI / 2, Math.PI, 0]}>
-          <extrudeGeometry args={[wingShape, extrudeSettings]} />
-          <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
-        </mesh>
-        {/* Dark panels on wings */}
-        <mesh position={[-10, 0.95, 2]} rotation={[-Math.PI / 2, 0, 0]} scale={[0.9, 0.9, 0.9]}>
-          <shapeGeometry args={[wingShape]} />
-          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
-        </mesh>
-        <mesh position={[10, 0.95, 2]} rotation={[-Math.PI / 2, Math.PI, 0]} scale={[0.9, 0.9, 0.9]}>
-          <shapeGeometry args={[wingShape]} />
-          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
-        </mesh>
-        {/* Engine Block */}
-        <mesh position={[0, 0, -11]}>
-          <boxGeometry args={[9, 6, 5]} />
-          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
-        </mesh>
-        {/* Engines */}
-        {
-          [
-            { x: -2.5, y: 1.5, z: -13 }, { x: 2.5, y: 1.5, z: -13 },
-            { x: -2.5, y: -1.5, z: -13 }, { x: 2.5, y: -1.5, z: -13 }
-          ].map((pos, i) => (
-            <group key={i}>
-              <mesh position={[pos.x, pos.y, pos.z + 1]} rotation={[Math.PI / 2, 0, 0]}>
-                <cylinderGeometry args={[1, 1.2, 2, 12]} />
-                <meshStandardMaterial color={0xd1d5db} metalness={0.6} roughness={0.4} />
-              </mesh>
-              <mesh position={[pos.x, pos.y, pos.z - 0.01]}>
-                <circleGeometry args={[0.9, 12]} />
-                <meshBasicMaterial color={0x56a1ff} toneMapped={false} />
-              </mesh>
-            </group>
-          ))
-        }
-        {/* Top Detail */}
-        <mesh position={[0, 2.2, -1.5]}>
-          <boxGeometry args={[3, 0.5, 3]} />
-          <meshStandardMaterial color={0x1f2937} metalness={0.5} roughness={0.6} />
-        </mesh>
-        {/* Accent Stripes */}
-        <mesh position={[2.6, 2.5, 7.5]} rotation={[0, 0.1, 0]}>
-          <boxGeometry args={[0.2, 0.2, 5]} />
-          <meshStandardMaterial color={0xf9a825} metalness={0.8} roughness={0.3} emissive={0xf9a825} emissiveIntensity={0.2} />
-        </mesh>
-        <mesh position={[-2.6, 2.5, 7.5]} rotation={[0, -0.1, 0]}>
-          <boxGeometry args={[0.2, 0.2, 5]} />
-          <meshStandardMaterial color={0xf9a825} metalness={0.8} roughness={0.3} emissive={0xf9a825} emissiveIntensity={0.2} />
+        <mesh ref={engineGlowR} position={[2.5, 0, -11.5]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.8, 0.1, 2, 16]} />
+            <meshStandardMaterial color="#ffb347" emissive="#ff7a00" emissiveIntensity={1.2} />
         </mesh>
       </group>
     </group>

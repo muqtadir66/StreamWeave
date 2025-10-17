@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-console.log('[Starweave] Booting app...')
+console.log('[StreamWeave] Booting app...') // Corrected game name
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

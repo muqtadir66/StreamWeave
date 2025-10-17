@@ -6,6 +6,7 @@ import { useGameStore } from '../../stores/gameStore'
 function SpeedStreaks() {
   const meshRef = useRef();
   const speed = useGameStore((s) => s.speed);
+  const isBoosting = useGameStore((s) => s.isBoosting);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
 
   const particles = useMemo(() => {
@@ -17,7 +18,7 @@ function SpeedStreaks() {
         const x = (Math.random() - 0.5) * spawnVolume.x;
         const y = (Math.random() - 0.5) * spawnVolume.y;
         const z = -Math.random() * spawnVolume.z;
-        const velocity = 1.5 + Math.random() * 1.0; // Individual speed multiplier
+        const velocity = 1.5 + Math.random() * 1.0;
         arr.push({ position: new THREE.Vector3(x, y, z), velocity });
     }
     return arr;
@@ -25,14 +26,15 @@ function SpeedStreaks() {
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
+
+    const targetLength = isBoosting ? 6.0 : 2.5;
+    meshRef.current.scale.z = THREE.MathUtils.lerp(meshRef.current.scale.z, targetLength, 0.1);
     
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       
-      // Move particle much faster than the world speed for parallax
       p.position.z += speed * p.velocity * delta;
 
-      // Wrap particles that go past the camera
       if (p.position.z > 10) {
         p.position.z = -250;
         p.position.x = (Math.random() - 0.5) * 80;
@@ -40,7 +42,7 @@ function SpeedStreaks() {
       }
 
       tempObject.position.copy(p.position);
-      tempObject.lookAt(0, 0, 1000); // Point streaks forward
+      tempObject.lookAt(0, 0, 1000);
       tempObject.updateMatrix();
       meshRef.current.setMatrixAt(i, tempObject.matrix);
     }
@@ -49,7 +51,7 @@ function SpeedStreaks() {
 
   return (
     <instancedMesh ref={meshRef} args={[null, null, particles.length]}>
-      <boxGeometry args={[0.02, 0.02, 2.5]} />
+      <boxGeometry args={[0.02, 0.02, 1]} />
       <meshBasicMaterial 
         color="#aef8ff" 
         toneMapped={false} 

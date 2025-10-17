@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../stores/gameStore'
 import SpeedStreaks from './SpeedStreaks'
 
-// --- ATMOSPHERIC GLOW COMPONENT ---
+// --- ATMOSPHERIC GLOW COMPONENT (Restored) ---
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -22,7 +22,6 @@ const fragmentShader = `
     float dist = distance(vUv, vec2(0.5));
     float strength = 1.0 - smoothstep(0.0, 0.5, dist);
     
-    // Add a shimmering effect
     float shimmer = (sin((vUv.x + uTime * 0.1) * 20.0) + sin((vUv.y + uTime * 0.1) * 10.0)) * 0.05;
     strength *= 1.0 - shimmer;
 
@@ -37,24 +36,11 @@ function AtmosphericGlow() {
       materialRef.current.uniforms.uTime.value = clock.elapsedTime;
     }
   });
-
-  const uniforms = useMemo(() => ({
-    uTime: { value: 0 },
-    uColor: { value: new THREE.Color('#89d0ff') }
-  }), []);
-
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: new THREE.Color('#89d0ff') } }), []);
   return (
     <mesh position={[0, 10, -300]} scale={250}>
       <planeGeometry args={[1, 1]} />
-      <shaderMaterial
-        ref={materialRef}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        uniforms={uniforms}
-        transparent
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
+      <shaderMaterial ref={materialRef} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} transparent depthWrite={false} blending={THREE.AdditiveBlending} />
     </mesh>
   );
 }
@@ -62,16 +48,13 @@ function AtmosphericGlow() {
 
 // --- MAIN WORLD ELEMENTS COMPONENT ---
 const createAsteroidGeometry = () => {
-    // Use a low-poly base for sharp edges, with subtle noise
     const geo = new THREE.IcosahedronGeometry(1.0, 0); 
     const vertices = geo.attributes.position.array;
     for (let i = 0; i < vertices.length; i += 3) {
         const x = vertices[i], y = vertices[i+1], z = vertices[i+2];
-        const noise = 0.1 + Math.random() * 0.2; // Reduced noise for more defined shapes
+        const noise = 0.1 + Math.random() * 0.2;
         const vec = new THREE.Vector3(x, y, z).normalize().multiplyScalar(noise);
-        vertices[i] += vec.x;
-        vertices[i+1] += vec.y;
-        vertices[i+2] += vec.z;
+        vertices[i] += vec.x; vertices[i+1] += vec.y; vertices[i+2] += vec.z;
     }
     geo.computeVertexNormals();
     return geo;
@@ -86,13 +69,11 @@ function WorldElements() {
   const shipPos = useGameStore((s) => s.shipPos)
   const setShake = useGameStore((s) => s.setShake)
 
-  // Starfield
   const starCountNear = 350, starCountFar = 500, starDepth = 400;
   const nearStarsRef = useRef(), farStarsRef = useRef();
   const nearStars = useMemo(() => new THREE.BufferAttribute(new Float32Array(starCountNear * 3).map((_, i) => (Math.random() - 0.5) * [180, 90, starDepth*2][i%3]), 3), []);
   const farStars = useMemo(() => new THREE.BufferAttribute(new Float32Array(starCountFar * 3).map((_, i) => (Math.random() - 0.5) * [240, 120, starDepth*2][i%3]), 3), []);
 
-  // Asteroid Field
   const rockRef = useRef()
   const coreRef = useRef()
   const obstacleCount = 60;
@@ -106,7 +87,7 @@ function WorldElements() {
         const x = (Math.random() - 0.5) * spawnVolume.x;
         const y = (Math.random() - 0.5) * spawnVolume.y;
         const z = -Math.random() * spawnVolume.z - 40;
-        const scale = 1.2 + Math.random() * 2.5; // Reverted to original, larger size
+        const scale = 1.2 + Math.random() * 2.5;
         arr.push({ 
             position: new THREE.Vector3(x, y, z), 
             spin: new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5),
@@ -146,8 +127,7 @@ function WorldElements() {
 
         const dx = Math.abs(shipPos.x - o.position.x), dy = Math.abs(shipPos.y - o.position.y), dz = Math.abs(shipPos.z - o.position.z);
         
-        const shipRadius = 1.8;
-        // The critical change: a smaller, more forgiving hitbox multiplier (0.6)
+        const shipRadius = 1.0; 
         const hit = dx < (shipRadius + o.scale * 0.6) && dy < (shipRadius + o.scale * 0.6) && dz < (shipRadius + o.scale * 0.6)
         if (hit) {
           setShake(0.9);

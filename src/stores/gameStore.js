@@ -11,6 +11,9 @@ export const useGameStore = create(
       speed: 22, // world flow speed units/s
       maxSpeed: 80,
       acceleration: 2, // units/s^2 to ramp difficulty
+      // Boost state
+      isBoosting: false,
+      setBoosting: (isBoosting) => set({ isBoosting }),
       // Ship state (for camera and collisions)
       shipPos: { x: 0, y: 0, z: 0 },
       setShipPos: (pos) => set({ shipPos: pos }),
@@ -26,24 +29,36 @@ export const useGameStore = create(
       crash: () => {
         const { score, bestScore } = get()
         const newBest = Math.max(bestScore ?? 0, Math.floor(score))
-        set({ status: 'crashed', bestScore: newBest })
+        set({ status: 'crashed', bestScore: newBest, isBoosting: false })
       },
-      reset: () => set((s) => ({ status: 'idle', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0 })),
-      addScore: (delta) => set((s) => ({ score: s.status === 'running' ? s.score + delta : s.score })),
+      reset: () => set((s) => ({ status: 'idle', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, isBoosting: false })),
+      addScore: (delta) => set((s) => {
+        const scoreMultiplier = get().isBoosting ? 3 : 1;
+        return { score: s.status === 'running' ? s.score + delta * scoreMultiplier : s.score }
+      }),
       tickPacing: (delta) => set((s) => {
         if (s.status !== 'running') return {}
-        const next = Math.min(s.maxSpeed, s.speed + s.acceleration * delta)
+        const normalMaxSpeed = s.maxSpeed * 0.7;
+        if (get().isBoosting) {
+          return { speed: Math.min(s.maxSpeed, s.speed + s.maxSpeed * 0.8 * delta) }
+        }
+        // Instant reset logic
+        const currentSpeed = get().speed;
+        if (currentSpeed > normalMaxSpeed) {
+            return { speed: Math.max(normalMaxSpeed, currentSpeed - s.maxSpeed * 2.0 * delta) }
+        }
+        const next = Math.min(normalMaxSpeed, s.speed + s.acceleration * delta)
         return { speed: next }
       }),
     }),
     {
-      name: 'starweave-game',
+      name: 'streamweave-game',
       partialize: (state) => ({ bestScore: state.bestScore }),
       storage: createJSONStorage(() => {
         try {
           return localStorage
         } catch (e) {
-          console.warn('[Starweave] localStorage unavailable, using memory storage')
+          console.warn('[StreamWeave] localStorage unavailable, using memory storage')
           return {
             getItem: () => null,
             setItem: () => {},
