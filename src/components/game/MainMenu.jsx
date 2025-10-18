@@ -11,6 +11,7 @@ const MainMenu = () => {
   const reset = useGameStore((s) => s.reset);
   const score = useGameStore((s) => s.score);
   const bestScore = useGameStore((s) => s.bestScore);
+  const longestBoostStreak = useGameStore((s) => s.longestBoostStreak);
 
   useEffect(() => {
     // Animation sequence for menu appearance
@@ -133,7 +134,7 @@ const MainMenu = () => {
               color: '#ff4444',
               textShadow: '0 0 10px rgba(255, 68, 68, 0.8)'
             }}>
-              FLIGHT TERMINATED • Score: {Math.floor(score)} • Best: {bestScore}
+              FLIGHT TERMINATED • Score: {Math.floor(score)} • Best: {bestScore} • Session Streak: {longestBoostStreak.toFixed(2)}s
             </div>
           )}
         </div>
@@ -376,6 +377,7 @@ const OptionsPanel = () => {
 // Statistics Panel Component
 const StatisticsPanel = () => {
   const bestScore = useGameStore((s) => s.bestScore);
+  const allTimeLongestBoostStreak = useGameStore((s) => s.allTimeLongestBoostStreak);
 
   return (
     <div style={{
@@ -399,6 +401,25 @@ const StatisticsPanel = () => {
           textShadow: '0 0 10px rgba(0, 246, 255, 0.5)'
         }}>
           {bestScore || 0}
+        </p>
+      </div>
+
+      <div style={{
+        background: 'rgba(0, 246, 255, 0.1)',
+        border: '1px solid rgba(0, 246, 255, 0.3)',
+        borderRadius: '15px',
+        padding: '25px',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '2.5em', marginBottom: '10px' }}>🔥</div>
+        <h3 style={{ color: '#00f6ff', margin: '10px 0' }}>LONGEST STREAK</h3>
+        <p style={{
+          fontSize: '2em',
+          color: '#00f6ff',
+          fontWeight: 'bold',
+          textShadow: '0 0 10px rgba(0, 246, 255, 0.5)'
+        }}>
+          {allTimeLongestBoostStreak ? allTimeLongestBoostStreak.toFixed(2) : 0}s
         </p>
       </div>
 
