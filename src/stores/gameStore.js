@@ -7,6 +7,10 @@ export const useGameStore = create(
       status: 'idle', // idle | running | crashed
       score: 0,
       bestScore: 0,
+      // Boost streak
+      boostStreak: 0,
+      longestBoostStreak: 0,
+      allTimeLongestBoostStreak: 0,
       // Core game pacing
       speed: 22, // world flow speed units/s
       maxSpeed: 80,
@@ -27,13 +31,16 @@ export const useGameStore = create(
       runId: 0,
       start: () => set((s) => ({ status: 'running', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0 })),
       crash: () => {
-        const { score, bestScore } = get()
+        const { score, bestScore, boostStreak, longestBoostStreak, allTimeLongestBoostStreak } = get()
         const newBest = Math.max(bestScore ?? 0, Math.floor(score))
-        set({ status: 'crashed', bestScore: newBest, isBoosting: false })
+        const finalStreak = Math.max(boostStreak, longestBoostStreak)
+        const newAllTimeBest = Math.max(allTimeLongestBoostStreak ?? 0, finalStreak)
+        set({ status: 'crashed', bestScore: newBest, isBoosting: false, allTimeLongestBoostStreak: newAllTimeBest, boostStreak: 0 })
       },
-      reset: () => set((s) => ({ status: 'idle', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, isBoosting: false })),
+      reset: () => set((s) => ({ status: 'idle', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, isBoosting: false, boostStreak: 0, longestBoostStreak: 0 })),
       addScore: (delta) => set((s) => {
-        const scoreMultiplier = get().isBoosting ? 3 : 1;
+        const { isBoosting, boostStreak } = get()
+        const scoreMultiplier = isBoosting ? 1 + Math.floor(boostStreak / 10) * 0.5 : 1;
         return { score: s.status === 'running' ? s.score + delta * scoreMultiplier : s.score }
       }),
       tickPacing: (delta) => set((s) => {
@@ -50,10 +57,21 @@ export const useGameStore = create(
         const next = Math.min(normalMaxSpeed, s.speed + s.acceleration * delta)
         return { speed: next }
       }),
+      tickBoostStreak: (delta) => set((s) => {
+        if (s.status !== 'running') return {}
+        if (get().isBoosting) {
+          return { boostStreak: s.boostStreak + delta }
+        } else {
+          // Streak is broken
+          const { boostStreak, longestBoostStreak } = get()
+          const newLongest = Math.max(longestBoostStreak, boostStreak)
+          return { boostStreak: 0, longestBoostStreak: newLongest }
+        }
+      }),
     }),
     {
       name: 'streamweave-game',
-      partialize: (state) => ({ bestScore: state.bestScore }),
+      partialize: (state) => ({ bestScore: state.bestScore, allTimeLongestBoostStreak: state.allTimeLongestBoostStreak }),
       storage: createJSONStorage(() => {
         try {
           return localStorage
