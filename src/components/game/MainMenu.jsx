@@ -297,7 +297,7 @@ const MainMenu = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes logoGlow {
           from { text-shadow: 0 0 20px rgba(0, 246, 255, 0.5); }
           to { text-shadow: 0 0 30px rgba(0, 246, 255, 0.8), 0 0 40px rgba(153, 0, 0, 0.3); }

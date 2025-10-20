@@ -8,12 +8,12 @@ function Lights() {
 
   return (
     <>
-      <ambientLight intensity={0.3} />
+      <ambientLight intensity={0.6} />
       <hemisphereLight args={[0x5588ff, 0x000011, 0.6]} />
       <directionalLight 
         ref={lightRef}
         position={[10, 20, 15]} 
-        intensity={1.0} 
+        intensity={2.0} 
         color="#99ccff" 
         castShadow
         shadow-mapSize-width={2048}

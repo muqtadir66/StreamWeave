@@ -35,7 +35,7 @@ export const useGameStore = create(
         const newBest = Math.max(bestScore ?? 0, Math.floor(score))
         const finalStreak = Math.max(boostStreak, longestBoostStreak)
         const newAllTimeBest = Math.max(allTimeLongestBoostStreak ?? 0, finalStreak)
-        set({ status: 'crashed', bestScore: newBest, isBoosting: false, allTimeLongestBoostStreak: newAllTimeBest, boostStreak: 0 })
+        set({ status: 'crashed', bestScore: newBest, isBoosting: false, allTimeLongestBoostStreak: newAllTimeBest, boostStreak: 0, longestBoostStreak: finalStreak })
       },
       reset: () => set((s) => ({ status: 'idle', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, isBoosting: false, boostStreak: 0, longestBoostStreak: 0 })),
       addScore: (delta) => set((s) => {
