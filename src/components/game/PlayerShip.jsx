@@ -91,8 +91,8 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
     shipRef.current.rotation.y = -velocity.x * 0.02;
 
     // Engine flare logic
-    const targetScale = isBoosting ? 1.8 : 1;
-    const targetIntensity = isBoosting ? 2.5 : 1.2;
+    const targetScale = isBoosting ? 3 : 1;
+    const targetIntensity = isBoosting ? 3.5 : 1.2;
     [engineGlowL, engineGlowR].forEach(ref => {
         if(ref.current) {
             ref.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);

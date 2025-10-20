@@ -9,15 +9,19 @@ import WorldElements from './WorldElements'
 import CameraRig from './CameraRig'
 import SceneEffects from './SceneEffects.jsx'
 import MainMenu from './MainMenu'
+import BoostStreakHUD from './BoostStreakHUD'
 import { useGameStore } from '../../stores/gameStore'
 
 function GameLoop() {
   const status = useGameStore((s) => s.status)
   const speed = useGameStore((s) => s.speed)
   const addScore = useGameStore((s) => s.addScore)
+  const tickBoostStreak = useGameStore((s) => s.tickBoostStreak)
+
   useFrame((_, delta) => {
     if (status === 'running') {
       addScore(speed * 0.5 * delta)
+      tickBoostStreak(delta)
     }
   })
   return null
@@ -103,6 +107,8 @@ function Scene() {
         <GameLoop />
         {highQuality && <SceneEffects />}
       </Canvas>
+
+      <BoostStreakHUD />
 
       {/* Enhanced Game HUD */}
       <div style={{

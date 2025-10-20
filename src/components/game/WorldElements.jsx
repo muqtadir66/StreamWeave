@@ -127,7 +127,7 @@ function WorldElements() {
 
         const dx = Math.abs(shipPos.x - o.position.x), dy = Math.abs(shipPos.y - o.position.y), dz = Math.abs(shipPos.z - o.position.z);
         
-        const shipRadius = 1.0; 
+        const shipRadius = 1.2; 
         const hit = dx < (shipRadius + o.scale * 0.6) && dy < (shipRadius + o.scale * 0.6) && dz < (shipRadius + o.scale * 0.6)
         if (hit) {
           setShake(0.9);
