@@ -77,12 +77,13 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
     velocity.add(dampingForce)
     shipPos.addScaledVector(velocity, delta)
 
-    // Define the fixed playable field boundaries
+    // --- REVERTED TO ORIGINAL BOUNDARIES ---
     const boundX = 15 - 2; // Half of the 30-unit horizontal spawn volume
     const boundY = 17.5 - 2; // Half of the 35-unit vertical spawn volume
     
     shipPos.x = Math.max(-boundX, Math.min(boundX, shipPos.x));
     shipPos.y = Math.max(-boundY, Math.min(boundY, shipPos.y));
+    // --- END REVERT ---
     
     shipRef.current.position.copy(shipPos);
 

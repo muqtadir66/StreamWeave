@@ -6,18 +6,35 @@ body {
   color: #fff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* --- FIX: Disable text selection and tap highlights --- */
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10+ */
+  user-select: none; /* Standard */
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root, body, html, canvas {
   touch-action: none;
+  
+  /* --- FIX: Disable text selection for these too --- */
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
   width: 100vw;
-  height: 100vh;
+  /* --- FIX: Use dynamic viewport height (dvh) --- */
+  height: 100dvh;
+  /* Fallback for older browsers */
+  height: -webkit-fill-available;
+  /* Prevent scrolling/bouncing on the root */
+  overflow: hidden; 
 }
 
-/* --- Button Overhaul --- */
+/* --- Button Overhaul (Original) --- */
 button {
   font-family: 'Consolas', 'Monaco', monospace;
   font-size: 16px;
@@ -31,6 +48,12 @@ button {
   overflow: hidden;
   transition: transform 150ms ease, color 150ms ease;
   text-shadow: 0 0 5px rgba(0, 246, 255, 0.5);
+
+  /* --- FIX: Disable text selection for buttons --- */
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button::before {

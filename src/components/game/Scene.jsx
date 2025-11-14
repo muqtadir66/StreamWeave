@@ -41,7 +41,7 @@ function Scene() {
   const bind = useDrag(({ active, movement: [mx, my] }) => {
     if (active) {
         const dist = Math.sqrt(mx * mx + my * my);
-        const maxDist = 50;
+        const maxDist = 50; // Original maxDist, this is the drag sensitivity
         if (dist > maxDist) {
             setMobileSteer({ x: mx / dist, y: -my / dist });
         } else {
@@ -96,7 +96,6 @@ function Scene() {
       <Canvas
         camera={{ position: [0, 0, 8], fov: 68 }}
         style={{ background: 'linear-gradient(180deg, #050814 0%, #000 70%)' }}
-        dpr={1}
         gl={{ antialias: highQuality, powerPreference: 'high-performance' }}
       >
         <fog attach="fog" args={["#0b1220", 40, 180]} />
@@ -186,19 +185,25 @@ function Scene() {
       {/* New Main Menu Component */}
       <MainMenu />
       
-      {status === 'running' && (
-        <>
+      {/* Wrapper div that toggles display */}
+      <div style={{ display: status === 'running' ? 'block' : 'none' }}>
+        
           {/* Enhanced Mobile Steering Control */}
           <div style={{
             position: 'absolute',
-            bottom: '20px',
+            bottom: '120px',
+            /* --- FIX: Reverted left calc for 150px width --- */
             left: 'calc(15vw - 75px)',
+            /* --- FIX: Reverted size to 150px --- */
             width: '150px',
             height: '150px',
             zIndex: 10,
             pointerEvents: 'auto'
           }}>
-            <div {...bind()} style={{
+            <div {...bind()} 
+              onPointerLeave={() => setMobileSteer({ x: 0, y: 0 })}
+              onPointerCancel={() => setMobileSteer({ x: 0, y: 0 })}
+              style={{
               width: '100%',
               height: '100%',
               background: 'radial-gradient(circle, rgba(0, 246, 255, 0.2) 0%, rgba(0, 246, 255, 0.05) 70%, transparent 100%)',
@@ -240,6 +245,7 @@ function Scene() {
                 transform: 'translate(-50%, -50%)',
                 transition: 'all 0.1s ease-out',
                 boxShadow: '0 0 15px rgba(0, 246, 255, 0.9)',
+                /* --- FIX: Reverted drag multiplier for 150px area --- */
                 transform: `translate(-50%, -50%) translate(${mobileSteer.x * 40}px, ${-mobileSteer.y * 40}px)`
               }} />
 
@@ -254,6 +260,7 @@ function Scene() {
                   background: '#00f6ff',
                   borderRadius: '50%',
                   boxShadow: '0 0 10px #00f6ff',
+                  /* --- FIX: Reverted drag multiplier for 150px area --- */
                   transform: `translate(-50%, -50%) translate(${mobileSteer.x * 45}px, ${-mobileSteer.y * 45}px)`
                 }} />
               ) : null}
@@ -263,7 +270,7 @@ function Scene() {
           {/* Enhanced Boost Button */}
           <div style={{
             position: 'absolute',
-            bottom: '20px',
+            bottom: '120px',
             right: '20px',
             zIndex: 10,
             pointerEvents: 'auto'
@@ -271,6 +278,8 @@ function Scene() {
             <button
               onPointerDown={() => setBoosting(true)}
               onPointerUp={() => setBoosting(false)}
+              onPointerLeave={() => setBoosting(false)}
+              onPointerCancel={() => setBoosting(false)}
               style={{
                 width: '100px',
                 height: '100px',
@@ -333,8 +342,9 @@ function Scene() {
               </div>
             </div>
           </div>
-        </>
-      )}
+        
+      </div>
+      {/* This is the closing tag for the new wrapper div */}
 
     </div>
   )

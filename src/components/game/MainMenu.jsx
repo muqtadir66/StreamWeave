@@ -12,6 +12,7 @@ const MainMenu = () => {
   const score = useGameStore((s) => s.score);
   const bestScore = useGameStore((s) => s.bestScore);
   const longestBoostStreak = useGameStore((s) => s.longestBoostStreak);
+  const allTimeLongestBoostStreak = useGameStore((s) => s.allTimeLongestBoostStreak);
 
   useEffect(() => {
     // Animation sequence for menu appearance
@@ -51,9 +52,19 @@ const MainMenu = () => {
       background: 'rgba(5, 8, 20, 0.9)',
       backdropFilter: 'blur(20px)',
       display: 'flex',
-      alignItems: 'center',
+      
+      /* --- FIX: Align menu to top, not center --- */
+      alignItems: 'flex-start',
       justifyContent: 'center',
-      fontFamily: "'Courier New', 'Consolas', monospace"
+      paddingTop: '5vh', // Add some space from the top
+      paddingBottom: '5vh', // Add space at the bottom for scrolling
+      /* --- END FIX --- */
+      
+      fontFamily: "'Courier New', 'Consolas', monospace",
+      height: '100dvh',
+      width: '100vw',
+      overflowY: 'auto',
+      boxSizing: 'border-box' // Ensure padding is included
     }}>
       {/* Animated background particles */}
       <div style={{
@@ -80,12 +91,12 @@ const MainMenu = () => {
         ))}
       </div>
 
-      {/* Main holographic interface */}
+      {/* Main holographic interface (Original) */}
       <div style={{
         position: 'relative',
         width: '90vw',
         maxWidth: '800px',
-        minHeight: '600px',
+        minHeight: '600px', // Original minHeight
         background: 'rgba(0, 10, 20, 0.8)',
         border: '1px solid #00f6ff',
         borderRadius: '20px',
@@ -96,7 +107,7 @@ const MainMenu = () => {
         transition: 'all 0.5s ease-out'
       }}>
 
-        {/* Header with animated logo */}
+        {/* Header with animated logo (Original) */}
         <div style={{
           textAlign: 'center',
           padding: '40px 20px',
@@ -139,7 +150,7 @@ const MainMenu = () => {
           )}
         </div>
 
-        {/* Navigation tabs */}
+        {/* Navigation tabs (Original) */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
@@ -173,7 +184,7 @@ const MainMenu = () => {
           ))}
         </div>
 
-        {/* Content panels */}
+        {/* Content panels (Original) */}
         <div style={{ padding: '20px 40px', minHeight: '300px' }}>
 
           {/* Main Panel */}
@@ -241,7 +252,7 @@ const MainMenu = () => {
                 </div>
               </div>
 
-              {/* Control instructions */}
+              {/* Control instructions (Original) */}
               <div style={{
                 background: 'rgba(0, 0, 0, 0.3)',
                 border: '1px solid rgba(0, 246, 255, 0.2)',
@@ -273,11 +284,11 @@ const MainMenu = () => {
 
           {/* Statistics Panel */}
           {activePanel === 'stats' && (
-            <StatisticsPanel />
+            <StatisticsPanel allTimeLongestBoostStreak={allTimeLongestBoostStreak} bestScore={bestScore} />
           )}
         </div>
 
-        {/* Bottom status bar */}
+        {/* Bottom status bar (Original) */}
         <div style={{
           position: 'absolute',
           bottom: 0,
@@ -319,7 +330,7 @@ const MainMenu = () => {
   );
 };
 
-// Options Panel Component
+// Options Panel Component (Original)
 const OptionsPanel = () => {
   const highQuality = useGameStore((s) => s.highQuality);
   const toggleHighQuality = useGameStore((s) => s.toggleHighQuality);
@@ -374,10 +385,8 @@ const OptionsPanel = () => {
   );
 };
 
-// Statistics Panel Component
-const StatisticsPanel = () => {
-  const bestScore = useGameStore((s) => s.bestScore);
-  const allTimeLongestBoostStreak = useGameStore((s) => s.allTimeLongestBoostStreak);
+// Statistics Panel Component (Original, but passing props)
+const StatisticsPanel = ({ bestScore, allTimeLongestBoostStreak }) => {
 
   return (
     <div style={{
