@@ -7,7 +7,6 @@ import Lights from './Lights'
 import PlayerShip from './PlayerShip'
 import WorldElements from './WorldElements'
 import CameraRig from './CameraRig'
-import SceneEffects from './SceneEffects.jsx'
 import MainMenu from './MainMenu'
 import BoostStreakHUD from './BoostStreakHUD'
 import { useGameStore } from '../../stores/gameStore'
@@ -32,8 +31,6 @@ function Scene() {
     console.log('[StreamWeave] Scene mounted')
     return () => console.log('[StreamWeave] Scene unmounted')
   }, [])
-  const highQuality = useGameStore((s) => s.highQuality)
-  const toggleHighQuality = useGameStore((s) => s.toggleHighQuality)
   const [mobileSteer, setMobileSteer] = useState({ x: 0, y: 0 })
   const setBoosting = useGameStore((s) => s.setBoosting);
 
@@ -95,16 +92,15 @@ function Scene() {
     <div style={{ position: 'relative', width: '100vw', height: '100vh', touchAction: 'none' }}>
       <Canvas
         camera={{ position: [0, 0, 8], fov: 68 }}
-        style={{ background: 'linear-gradient(180deg, #050814 0%, #000 70%)' }}
-        gl={{ antialias: highQuality, powerPreference: 'high-performance' }}
+        style={{ background: 'linear-gradient(180deg, #1e3a8a 0%, #374151 50%, #111827 100%)' }}
+        gl={{ antialias: false, powerPreference: 'high-performance' }}
       >
-        <fog attach="fog" args={["#0b1220", 40, 180]} />
+        <fog attach="fog" args={["#6b7280", 40, 180]} />
         <Lights />
-        <WorldElements key={`world-${runId}`} highQuality={highQuality} />
+        <WorldElements key={`world-${runId}`} />
         <PlayerShip key={`ship-${runId}`} active={status === 'running'} mobileSteer={mobileSteer} />
         <CameraRig enabled={true} />
         <GameLoop />
-        {highQuality && <SceneEffects />}
       </Canvas>
 
       <BoostStreakHUD />

@@ -24,9 +24,7 @@ export const useGameStore = create(
       // FX
       shake: 0,
       setShake: (v) => set({ shake: v }),
-      // Visual toggles
-      highQuality: false,
-      toggleHighQuality: () => set((s) => ({ highQuality: !s.highQuality })),
+
       // World remount key for hard resets
       runId: 0,
       start: () => set((s) => ({ status: 'running', score: 0, speed: 22, runId: s.runId + 1, shipPos: { x: 0, y: 0, z: 0 }, shake: 0 })),

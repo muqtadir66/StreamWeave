@@ -36,7 +36,7 @@ function AtmosphericGlow() {
       materialRef.current.uniforms.uTime.value = clock.elapsedTime;
     }
   });
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: new THREE.Color('#990000') } }), []);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uColor: { value: new THREE.Color('#8b5cf6') } }), []);
   return (
     <mesh position={[0, 10, -300]} scale={250}>
       <planeGeometry args={[1, 1]} />
@@ -149,8 +149,8 @@ function WorldElements() {
     <>
       <AtmosphericGlow />
       <SpeedStreaks /> 
-      <points ref={nearStarsRef}><bufferGeometry attach="geometry"><bufferAttribute attach="attributes-position" {...nearStars} /></bufferGeometry><pointsMaterial size={0.12} color="#88ddff" sizeAttenuation transparent opacity={0.95} /></points>
-      <points ref={farStarsRef}><bufferGeometry attach="geometry"><bufferAttribute attach="attributes-position" {...farStars} /></bufferGeometry><pointsMaterial size={0.08} color="#66aaff" sizeAttenuation transparent opacity={0.75} /></points>
+      <points ref={nearStarsRef}><bufferGeometry attach="geometry"><bufferAttribute attach="attributes-position" {...nearStars} /></bufferGeometry><pointsMaterial size={0.12} color="#00d4ff" sizeAttenuation transparent opacity={0.95} /></points>
+      <points ref={farStarsRef}><bufferGeometry attach="geometry"><bufferAttribute attach="attributes-position" {...farStars} /></bufferGeometry><pointsMaterial size={0.08} color="#66d4ff" sizeAttenuation transparent opacity={0.75} /></points>
       <mesh receiveShadow position={[0, 0, -100]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[spawnVolume.x + 10, 400]} />
         <shadowMaterial opacity={0.4} />
@@ -166,10 +166,10 @@ function WorldElements() {
         <lineBasicMaterial color="#2a6dff" opacity={0.2} transparent />
       </lineSegments>
       <instancedMesh ref={rockRef} args={[baseAsteroidGeometry, undefined, obstacleCount]} castShadow>
-        <meshStandardMaterial color="#222222" roughness={0.8} metalness={0.9} />
+        <meshStandardMaterial color="#c0c0c0" roughness={0.8} metalness={0.9} />
       </instancedMesh>
       <instancedMesh ref={coreRef} args={[baseAsteroidGeometry, undefined, obstacleCount]}>
-        <meshBasicMaterial color="#ff4060" />
+        <meshBasicMaterial color="#ff006e" />
       </instancedMesh>
     </>
   )

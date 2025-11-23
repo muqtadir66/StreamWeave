@@ -78,7 +78,7 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
     shipPos.addScaledVector(velocity, delta)
 
     // --- REVERTED TO ORIGINAL BOUNDARIES ---
-    const boundX = 15 - 2; // Half of the 30-unit horizontal spawn volume
+    const boundX = 15 - 6; // Half of the 30-unit horizontal spawn volume
     const boundY = 17.5 - 2; // Half of the 35-unit vertical spawn volume
     
     shipPos.x = Math.max(-boundX, Math.min(boundX, shipPos.x));
