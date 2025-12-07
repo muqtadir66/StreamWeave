@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../stores/gameStore'
 import SpeedStreaks from './SpeedStreaks'
 
-// --- ATMOSPHERIC GLOW COMPONENT (Restored) ---
+// --- ATMOSPHERIC GLOW COMPONENT ---
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -76,6 +76,7 @@ function WorldElements() {
 
   const rockRef = useRef()
   const coreRef = useRef()
+  
   const obstacleCount = 60;
   const spawnVolume = { x: 30, y: 35, z: 220 };
   const baseAsteroidGeometry = useMemo(() => createAsteroidGeometry(), []);
@@ -97,26 +98,19 @@ function WorldElements() {
     return arr
   }, [])
 
- // Inside src/components/game/WorldElements.jsx
-
 useFrame((state, delta) => {
-    // CHANGE 1: Allow animation if running OR if we are in the menu (idle/crashed)
     const isRunning = status === 'running';
     const isAttractMode = status === 'idle' || status === 'crashed';
 
     if (!isRunning && !isAttractMode) return;
 
-    // CHANGE 2: Set speed based on mode (Full speed for game, slow for menu)
     speedRef.current = isAttractMode ? 8 : speed; 
     
-    // Call tickPacing only if running (to avoid difficulty ramping up while in menu)
     if (isRunning) tickPacing(delta);
 
-    // Star animation logic (remains the same)
     if (nearStarsRef.current) { nearStarsRef.current.position.z += speedRef.current * 0.9 * delta; if(nearStarsRef.current.position.z > starDepth) nearStarsRef.current.position.z = -starDepth; }
     if (farStarsRef.current) { farStarsRef.current.position.z += speedRef.current * 0.55 * delta; if(farStarsRef.current.position.z > starDepth) farStarsRef.current.position.z = -starDepth; }
 
-    // Obstacle animation logic
     if (rockRef.current) {
       for (let i = 0; i < obstacles.length; i++) {
         const o = obstacles[i]
@@ -128,7 +122,6 @@ useFrame((state, delta) => {
           o.position.z -= (spawnVolume.z + 20);
         }
 
-        // ... Rotation Matrix logic (remains the same) ...
         tempMatrix.makeRotationFromEuler(new THREE.Euler(state.clock.elapsedTime * o.spin.x, state.clock.elapsedTime * o.spin.y, state.clock.elapsedTime * o.spin.z));
         tempMatrix.setPosition(o.position.x, o.position.y, o.position.z);
         
@@ -138,11 +131,16 @@ useFrame((state, delta) => {
         const coreMatrix = tempMatrix.clone().scale(new THREE.Vector3(o.scale * 0.6, o.scale * 0.6, o.scale * 0.6));
         coreRef.current.setMatrixAt(i, coreMatrix);
 
-        // CHANGE 3: Only check for collisions if the game is actually running
         if (isRunning) {
             const dx = Math.abs(shipPos.x - o.position.x), dy = Math.abs(shipPos.y - o.position.y), dz = Math.abs(shipPos.z - o.position.z);
-            const shipRadius = 1.2; 
-            const hit = dx < (shipRadius + o.scale * 0.6) && dy < (shipRadius + o.scale * 0.6) && dz < (shipRadius + o.scale * 0.6)
+            
+            // Collision radii (Updated to match flattened ship profile)
+            const shipRadiusX = 1.2; 
+            const shipRadiusY = 0.4; // 0.8 / 2
+            
+            const hit = dx < (shipRadiusX + o.scale * 0.6) && 
+                        dy < (shipRadiusY + o.scale * 0.6) && 
+                        dz < (shipRadiusX + o.scale * 0.6);
             
             if (hit) {
               setShake(0.9);

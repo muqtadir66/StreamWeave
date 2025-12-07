@@ -25,7 +25,7 @@ export const useGameStore = create(
       currentTier: 0,
       isBoosting: false,
       speed: 22,
-      maxSpeed: 80,
+      maxSpeed: 100,
       acceleration: 2,
       shipPos: { x: 0, y: 0, z: 0 },
       shake: 0,
