@@ -6,6 +6,7 @@ const MainMenu = () => {
   const start = useGameStore((s) => s.start);
   const balance = useGameStore((s) => s.balance);
   const wager = useGameStore((s) => s.wager);
+  const lastWager = useGameStore((s) => s.lastWager); // NEW: Get the wager from the previous run
   const setWager = useGameStore((s) => s.setWager);
   const refill = useGameStore((s) => s.refill);
   const lastPayout = useGameStore((s) => s.payout);
@@ -16,7 +17,9 @@ const MainMenu = () => {
   if (status !== 'idle' && status !== 'crashed') return null;
 
   const isCrashed = status === 'crashed';
-  const netChange = lastPayout - wager;
+  
+  // FIX: Use lastWager instead of current wager for accurate history
+  const netChange = lastPayout - lastWager; 
 
   const adjustWager = (amount) => {
     const newWager = Math.min(500000, Math.max(500, wager + amount));
@@ -116,7 +119,7 @@ const MainMenu = () => {
             <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', textAlign: 'center', lineHeight: '1.6' }}>
               HOLD BOOST TO EARN • RELEASE TO BANK<br/>
               <span style={{color: '#ff4444'}}>FUEL DRAINS WHEN IDLE</span> • <span style={{color: '#00f6ff'}}>REGENS WHEN BOOSTING</span><br/>
-              10s = 0.5x | 20s = 1.5x | 30s = 3.5x | 40s = 8.0x | 50s = 20.0x
+              10s = 0.5x | 20s = 1.5x | 30s = 3.5x | 40s = 8.0x
             </div>
           </div>
 
@@ -185,7 +188,6 @@ const styles = {
   },
   title: {
     fontFamily: "'Orbitron', sans-serif", 
-    // FIXED: 9vw ensures it fits on mobile, 6rem ensures it's huge on desktop
     fontSize: 'clamp(1.5rem, 9vw, 6rem)', 
     margin: 0, color: '#fff', letterSpacing: '0.05em', fontWeight: '900',
     textShadow: '0 0 30px rgba(0, 246, 255, 0.4)',
