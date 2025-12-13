@@ -1,13 +1,18 @@
+import './polyfills';
 import React from 'react'
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { SolanaProvider } from './components/SolanaProvider' 
 
-console.log('[StreamWeave] Booting app...') // Corrected game name
+console.log('[StreamWeave] Booting app...')
+
+const RootWrapper = import.meta.env.DEV ? React.Fragment : React.StrictMode
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <RootWrapper>
+    <SolanaProvider>
+        <App />
+    </SolanaProvider>
+  </RootWrapper>,
 )

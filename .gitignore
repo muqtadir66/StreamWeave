@@ -10,3 +10,9 @@ node.zip
 
 # VS Code editor settings
 /.vscode
+# Local Netlify folder
+.netlify
+
+# Secrets (never commit)
+.env
+referee.json

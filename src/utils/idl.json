@@ -1,0 +1,176 @@
+{
+  "version": "0.1.0",
+  "name": "weave_contract",
+  "address": "6AyQbmH2bSeip2vZWR82NpJ637SQRtrAU4bt2j2yVPwN",
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [175, 175, 109, 31, 13, 152, 155, 237],
+      "accounts": [
+        { "name": "admin", "isMut": true, "isSigner": true },
+        { "name": "config", "isMut": true, "isSigner": false, "pda": { "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }] } },
+        { "name": "mint", "isMut": false, "isSigner": false },
+        { "name": "treasuryPda", "isMut": false, "isSigner": false, "pda": { "seeds": [{ "kind": "const", "value": [116, 114, 101, 97, 115, 117, 114, 121] }] } },
+        { "name": "treasuryTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
+        { "name": "associatedTokenProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false },
+        { "name": "rent", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "refereePubkey", "type": "publicKey" },
+        { "name": "burnBps", "type": "u16" }
+      ]
+    },
+    {
+      "name": "setRefereePubkey",
+      "discriminator": [78, 46, 16, 169, 3, 82, 51, 54],
+      "accounts": [
+        { "name": "admin", "isMut": false, "isSigner": true },
+        { "name": "config", "isMut": true, "isSigner": false, "pda": { "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }] } }
+      ],
+      "args": [
+        { "name": "refereePubkey", "type": "publicKey" }
+      ]
+    },
+    {
+      "name": "setBurnBps",
+      "discriminator": [226, 172, 145, 206, 238, 25, 16, 103],
+      "accounts": [
+        { "name": "admin", "isMut": false, "isSigner": true },
+        { "name": "config", "isMut": true, "isSigner": false, "pda": { "seeds": [{ "kind": "const", "value": [99, 111, 110, 102, 105, 103] }] } }
+      ],
+      "args": [
+        { "name": "burnBps", "type": "u16" }
+      ]
+    },
+    {
+      "name": "deposit",
+      "discriminator": [242, 35, 198, 137, 82, 225, 242, 182],
+      "accounts": [
+        { "name": "player", "isMut": true, "isSigner": true, "discriminator": [225, 18, 10, 89, 171, 51, 200, 211] },
+        { "name": "playerState", "isMut": true, "isSigner": false, "pda": { "seeds": [{ "kind": "const", "value": [112, 108, 97, 121, 101, 114, 95, 115, 116, 97, 116, 101] }, { "kind": "account", "path": "player" }] }, "discriminator": [53, 213, 73, 15, 174, 45, 113, 240] },
+        { "name": "playerTokenAccount", "isMut": true, "isSigner": false, "discriminator": [154, 241, 228, 151, 84, 70, 181, 98] },
+        { "name": "playerPdaTokenAccount", "isMut": true, "isSigner": false, "discriminator": [235, 251, 135, 234, 110, 158, 65, 19] },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false, "discriminator": [171, 179, 147, 25, 37, 68, 58, 194] },
+        { "name": "systemProgram", "isMut": false, "isSigner": false, "discriminator": [63, 146, 46, 119, 251, 173, 95, 80] }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [183, 18, 70, 156, 148, 109, 161, 34],
+      "accounts": [
+        { "name": "player", "isMut": true, "isSigner": true },
+        { "name": "playerState", "isMut": true, "isSigner": false, "pda": { "seeds": [{ "kind": "const", "value": [112, 108, 97, 121, 101, 114, 95, 115, 116, 97, 116, 101] }, { "kind": "account", "path": "player" }] } },
+        { "name": "playerTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "playerPdaTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "serverAuthority", "isMut": false, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" },
+        { "name": "serverSig", "type": { "array": ["u8", 64] } }
+      ]
+    },
+    {
+      "name": "withdrawV2",
+      "discriminator": [242, 80, 163, 0, 196, 221, 194, 194],
+      "accounts": [
+        { "name": "player", "isMut": true, "isSigner": true },
+        { "name": "playerState", "isMut": true, "isSigner": false },
+        { "name": "playerAuth", "isMut": true, "isSigner": false },
+        { "name": "playerTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "playerPdaTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "config", "isMut": false, "isSigner": false },
+        { "name": "treasuryPda", "isMut": false, "isSigner": false },
+        { "name": "treasuryTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "mint", "isMut": false, "isSigner": false },
+        { "name": "instructions", "isMut": false, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false },
+        { "name": "rent", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "authorizedAmount", "type": "u64" },
+        { "name": "nonce", "type": "u64" },
+        { "name": "expiry", "type": "u64" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "playerState",
+      "discriminator": [56, 3, 60, 86, 174, 16, 244, 195],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "balance", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "playerAuth",
+      "discriminator": [165, 11, 152, 169, 157, 118, 139, 185],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "lastNonce", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "config",
+      "discriminator": [155, 12, 170, 224, 30, 250, 204, 130],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "admin", "type": "publicKey" },
+          { "name": "refereePubkey", "type": "publicKey" },
+          { "name": "mint", "type": "publicKey" },
+          { "name": "burnBps", "type": "u16" }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "playerState",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "balance", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "playerAuth",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "lastNonce", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "admin", "type": "publicKey" },
+          { "name": "refereePubkey", "type": "publicKey" },
+          { "name": "mint", "type": "publicKey" },
+          { "name": "burnBps", "type": "u16" }
+        ]
+      }
+    }
+  ],
+  "events": [],
+  "errors": [],
+  "metadata": {
+    "origin": "anchor",
+    "address": "6AyQbmH2bSeip2vZWR82NpJ637SQRtrAU4bt2j2yVPwN"
+  }
+}
