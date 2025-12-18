@@ -116,21 +116,21 @@ function Scene() {
       if (boostPointerIdRef.current === pointerId || joystickPointerIdRef.current === pointerId) {
         stopAllInputs()
       }
-    }
-    const joyEl = joystickElRef.current
-    const boostEl = boostBtnRef.current
-    joyEl?.addEventListener('lostpointercapture', handleLostPointerCapture as any)
-    boostEl?.addEventListener('lostpointercapture', handleLostPointerCapture as any)
+	    }
+	    const joyEl = joystickElRef.current
+	    const boostEl = boostBtnRef.current
+	    joyEl?.addEventListener('lostpointercapture', handleLostPointerCapture)
+	    boostEl?.addEventListener('lostpointercapture', handleLostPointerCapture)
 
-    return () => {
-      window.removeEventListener('pointerup', handlePointerEnd)
-      window.removeEventListener('pointercancel', handlePointerEnd)
-      window.removeEventListener('blur', stopAllInputs)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      joyEl?.removeEventListener('lostpointercapture', handleLostPointerCapture as any)
-      boostEl?.removeEventListener('lostpointercapture', handleLostPointerCapture as any)
-    }
-  }, [setBoosting]);
+	    return () => {
+	      window.removeEventListener('pointerup', handlePointerEnd)
+	      window.removeEventListener('pointercancel', handlePointerEnd)
+	      window.removeEventListener('blur', stopAllInputs)
+	      document.removeEventListener('visibilitychange', handleVisibilityChange)
+	      joyEl?.removeEventListener('lostpointercapture', handleLostPointerCapture)
+	      boostEl?.removeEventListener('lostpointercapture', handleLostPointerCapture)
+	    }
+	  }, [setBoosting]);
 
   useEffect(() => {
     if (status !== 'running') {
