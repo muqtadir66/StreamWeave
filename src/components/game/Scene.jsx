@@ -28,6 +28,8 @@ function Scene() {
   const [mobileSteer, setMobileSteer] = useState({ x: 0, y: 0 })
   const joystickPointerIdRef = useRef(null)
   const boostPointerIdRef = useRef(null)
+  const joystickElRef = useRef(null)
+  const boostBtnRef = useRef(null)
   const walletCtx = useWallet();
   const setBoosting = useGameStore((s) => s.setBoosting);
   const status = useGameStore((s) => s.status)
@@ -60,25 +62,41 @@ function Scene() {
     }
   }, { pointer: { capture: true, keys: false } })
 
-  useEffect(() => {
-    const stopAllInputs = () => {
-      boostPointerIdRef.current = null
-      joystickPointerIdRef.current = null
-      setBoosting(false)
-      setMobileSteer({ x: 0, y: 0 })
+  const stopAllInputs = () => {
+    const boostPid = boostPointerIdRef.current
+    const joyPid = joystickPointerIdRef.current
+
+    if (boostPid != null && boostBtnRef.current) {
+      try { boostBtnRef.current.releasePointerCapture(boostPid) } catch {}
+    }
+    if (joyPid != null && joystickElRef.current) {
+      try { joystickElRef.current.releasePointerCapture(joyPid) } catch {}
     }
 
+    boostPointerIdRef.current = null
+    joystickPointerIdRef.current = null
+    setBoosting(false)
+    setMobileSteer({ x: 0, y: 0 })
+  }
+
+  useEffect(() => {
     const handlePointerEnd = (e) => {
       const pointerId = e?.pointerId
       if (pointerId == null) return
 
       if (boostPointerIdRef.current === pointerId) {
         boostPointerIdRef.current = null
+        if (boostBtnRef.current) {
+          try { boostBtnRef.current.releasePointerCapture(pointerId) } catch {}
+        }
         setBoosting(false)
       }
 
       if (joystickPointerIdRef.current === pointerId) {
         joystickPointerIdRef.current = null
+        if (joystickElRef.current) {
+          try { joystickElRef.current.releasePointerCapture(pointerId) } catch {}
+        }
         setMobileSteer({ x: 0, y: 0 })
       }
     }
@@ -92,22 +110,33 @@ function Scene() {
     window.addEventListener('blur', stopAllInputs)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    const handleLostPointerCapture = (e) => {
+      const pointerId = e?.pointerId
+      if (pointerId == null) return
+      if (boostPointerIdRef.current === pointerId || joystickPointerIdRef.current === pointerId) {
+        stopAllInputs()
+      }
+    }
+    const joyEl = joystickElRef.current
+    const boostEl = boostBtnRef.current
+    joyEl?.addEventListener('lostpointercapture', handleLostPointerCapture as any)
+    boostEl?.addEventListener('lostpointercapture', handleLostPointerCapture as any)
+
     return () => {
       window.removeEventListener('pointerup', handlePointerEnd)
       window.removeEventListener('pointercancel', handlePointerEnd)
       window.removeEventListener('blur', stopAllInputs)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      joyEl?.removeEventListener('lostpointercapture', handleLostPointerCapture as any)
+      boostEl?.removeEventListener('lostpointercapture', handleLostPointerCapture as any)
     }
   }, [setBoosting]);
 
   useEffect(() => {
     if (status !== 'running') {
-      boostPointerIdRef.current = null
-      joystickPointerIdRef.current = null
-      setBoosting(false)
-      setMobileSteer({ x: 0, y: 0 })
+      stopAllInputs()
     }
-  }, [status, setBoosting])
+  }, [status])
 
   useEffect(() => {
     const onKey = (e) => {
@@ -181,27 +210,37 @@ function Scene() {
       
 	      {/* Controls (Hidden when idle) */}
 	      <div style={{ display: status === 'running' ? 'block' : 'none' }}>
-          <div style={{
-            position: 'absolute', bottom: '120px', left: 'calc(15vw - 75px)',
-            width: '150px', height: '150px', zIndex: 10, pointerEvents: 'auto'
-          }}>
-            <div {...bind()} style={{
-              width: '100%', height: '100%', borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(0, 246, 255, 0.2), transparent)',
-              border: '2px solid rgba(0, 246, 255, 0.4)', position: 'relative'
-            }}>
-              <div style={{
-                position: 'absolute', top: '50%', left: '50%', width: '20px', height: '20px',
-                background: '#00f6ff', borderRadius: '50%',
-                transform: `translate(-50%, -50%) translate(${mobileSteer.x * 40}px, ${-mobileSteer.y * 40}px)`
-              }} />
-            </div>
-          </div>
+	          <div style={{
+	            position: 'absolute', bottom: '120px', left: 'calc(15vw - 75px)',
+	            width: '150px', height: '150px', zIndex: 10, pointerEvents: 'auto'
+	          }}>
+	            <div
+                ref={joystickElRef}
+                {...bind()}
+                onContextMenu={(e) => e.preventDefault()}
+                style={{
+	              width: '100%', height: '100%', borderRadius: '50%',
+	              background: 'radial-gradient(circle, rgba(0, 246, 255, 0.2), transparent)',
+	              border: '2px solid rgba(0, 246, 255, 0.4)', position: 'relative',
+                  touchAction: 'none',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  WebkitTouchCallout: 'none',
+	            }}>
+	              <div style={{
+	                position: 'absolute', top: '50%', left: '50%', width: '20px', height: '20px',
+	                background: '#00f6ff', borderRadius: '50%',
+	                transform: `translate(-50%, -50%) translate(${mobileSteer.x * 40}px, ${-mobileSteer.y * 40}px)`
+	              }} />
+	            </div>
+	          </div>
 
 	          <div style={{
 	            position: 'absolute', bottom: '120px', right: '20px', zIndex: 10, pointerEvents: 'auto'
 	          }}>
 	            <button
+                ref={boostBtnRef}
+                onContextMenu={(e) => e.preventDefault()}
 	              onPointerDown={(e) => {
                   boostPointerIdRef.current = e.pointerId
                   try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
@@ -230,7 +269,11 @@ function Scene() {
 	                width: '100px', height: '100px', borderRadius: '50%',
 	                border: '2px solid #ff4444', background: 'rgba(255, 68, 68, 0.1)',
 	                color: '#ff4444', fontWeight: 'bold', fontFamily: 'monospace',
-	                display: 'flex', alignItems: 'center', justifyContent: 'center'
+	                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  touchAction: 'none',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  WebkitTouchCallout: 'none',
 	              }}
 	            >
               BOOST
