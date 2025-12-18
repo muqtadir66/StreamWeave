@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../stores/gameStore';
-import { useWallet, useAnchorWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import HistoryModal from './HistoryModal';
+import LeaderboardModal from './LeaderboardModal';
 
 const MainMenu = () => {
   const status = useGameStore((s) => s.status);
@@ -13,27 +15,38 @@ const MainMenu = () => {
   const refill = useGameStore((s) => s.refill);
   const lastPayout = useGameStore((s) => s.payout);
   const needsFinalization = useGameStore((s) => s.needsFinalization);
+  const activeRoundId = useGameStore((s) => s.activeRoundId);
   
   // --- NEW ACTIONS ---
   const syncSession = useGameStore((s) => s.syncSession);
   const depositFunds = useGameStore((s) => s.depositFunds);
   const withdrawFunds = useGameStore((s) => s.withdrawFunds);
+  const abortActiveRound = useGameStore((s) => s.abortActiveRound);
+  const withdrawInFlight = useGameStore((s) => s.withdrawInFlight);
   
   // --- REAL SOLANA HOOKS ---
-  const { connected, publicKey, disconnect, wallet } = useWallet();
-  const anchorWallet = useAnchorWallet();
+  const walletCtx = useWallet();
+  const { connected, publicKey, disconnect } = walletCtx;
   const { setVisible } = useWalletModal();
 
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [depositAmount, setDepositAmount] = useState(1000); // Default deposit amount
 
   // Sync Balance on Connect
   useEffect(() => {
-    if (connected && anchorWallet) {
-      syncSession(anchorWallet);
-    }
-  }, [connected, anchorWallet, syncSession]);
+    if (!connected || !walletCtx?.publicKey) return;
+    syncSession(walletCtx);
+
+    const interval = setInterval(() => {
+      const st = useGameStore.getState().status;
+      if (st === 'running') return;
+      syncSession(walletCtx);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [connected, publicKey?.toBase58(), syncSession]);
 
   if (status !== 'idle' && status !== 'crashed') return null;
 
@@ -50,28 +63,39 @@ const MainMenu = () => {
   };
 
   const handleDeposit = () => {
-    if (!anchorWallet) return;
-    depositFunds(anchorWallet, depositAmount);
+    if (!walletCtx?.publicKey) return;
+    depositFunds(walletCtx, depositAmount);
   };
 
   const handleWithdraw = () => {
-    if (!anchorWallet) return;
-    withdrawFunds(anchorWallet);
+    if (!walletCtx?.publicKey) return;
+    withdrawFunds(walletCtx);
+  };
+
+  const handleClearRound = async () => {
+    try {
+      if (!walletCtx?.publicKey) return;
+      await abortActiveRound(walletCtx);
+    } catch (e) {
+      alert(e.message || String(e));
+    }
   };
 
   const withdrawLabel = balance > 0 ? 'WITHDRAW ALL FUNDS' : 'FINALIZE SESSION';
-  const depositDisabled = needsFinalization;
+  const depositDisabled = needsFinalization || !!activeRoundId;
+  const playDisabled = needsFinalization || !!activeRoundId;
+  const withdrawDisabled = !!activeRoundId || !!withdrawInFlight;
+  const withdrawText = withdrawInFlight ? 'WITHDRAWING…' : withdrawLabel;
 
   return (
     <div style={styles.overlay}>
       <style>
         {`@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@800;900&family=Rajdhani:wght@500;700&display=swap');`}
       </style>
-      
-      <div style={styles.vignette} />
-      
+
       <div style={{
         ...styles.contentWrapper, 
+        justifyContent: connected ? 'flex-start' : 'center',
         filter: showHowToPlay ? 'blur(5px)' : 'none'
       }}>
         
@@ -81,7 +105,7 @@ const MainMenu = () => {
             WEAVE STUDIOS PRESENTS
           </div>
           <h1 style={styles.title}>STREAM<span style={{ color: '#00f6ff' }}>WEAVE</span></h1>
-          <div style={styles.subtitle}>PROTOCOL V1.0 // SOLANA</div>
+          <div style={styles.subtitle}>WEAVE REWARD PROTOCOL // SOLANA</div>
         </div>
 
         {/* CONTROLS CONTAINER */}
@@ -121,7 +145,7 @@ const MainMenu = () => {
 
           {/* --- MAIN INTERFACE (Only when connected) --- */}
           {connected ? (
-            <>
+              <>
               {/* --- BANKING PANEL (New) --- */}
               <div style={styles.bankingPanel}>
                 <div style={styles.label}>SESSION BANK</div>
@@ -129,6 +153,12 @@ const MainMenu = () => {
                 {needsFinalization && (
                   <div style={{ ...styles.controlsFooter, marginBottom: '10px', color: '#ff4444' }}>
                     UNSETTLED ESCROW DETECTED — FINALIZE SESSION TO CONTINUE
+                  </div>
+                )}
+
+                {!!activeRoundId && (
+                  <div style={{ ...styles.controlsFooter, marginBottom: '10px', color: '#ffcc00' }}>
+                    ROUND IN PROGRESS (ANOTHER DEVICE OR PENDING SETTLEMENT)
                   </div>
                 )}
                 
@@ -147,9 +177,34 @@ const MainMenu = () => {
                 </div>
 
                 {/* Withdraw Row */}
-                <button onClick={handleWithdraw} style={{...styles.actionBtn, width: '100%', borderColor: '#ff4444', color: '#ff4444'}}>
-                  {withdrawLabel}
+                <button
+                  onClick={handleWithdraw}
+                  disabled={withdrawDisabled}
+                  style={{
+                    ...styles.actionBtn,
+                    width: '100%',
+                    borderColor: '#ff4444',
+                    color: '#ff4444',
+                    opacity: withdrawDisabled ? 0.5 : 1,
+                  }}
+                >
+                  {withdrawText}
                 </button>
+
+                {!!activeRoundId && (
+                  <button
+                    onClick={handleClearRound}
+                    style={{
+                      ...styles.actionBtn,
+                      width: '100%',
+                      borderColor: '#ffcc00',
+                      color: '#ffcc00',
+                      background: 'rgba(255, 204, 0, 0.08)',
+                    }}
+                  >
+                    CLEAR STUCK ROUND
+                  </button>
+                )}
               </div>
 
               {/* --- GAME WAGER CONTROLS --- */}
@@ -176,20 +231,30 @@ const MainMenu = () => {
               {/* --- START BUTTON --- */}
               <div style={styles.menuGroup}>
                 <button
-                  onClick={start}
+                  onClick={() => start(walletCtx)}
                   onMouseEnter={() => setHoveredBtn('start')}
                   onMouseLeave={() => setHoveredBtn(null)}
-                  disabled={balance < wager}
+                  disabled={playDisabled || balance < wager}
                   style={{
                     ...styles.button,
                     ...(hoveredBtn === 'start' ? styles.buttonHover : {}),
-                    opacity: balance < wager ? 0.5 : 1
+                    opacity: playDisabled || balance < wager ? 0.5 : 1
                   }}
                 >
                   <div style={styles.btnGlitch} />
                   <span style={{ position: 'relative', zIndex: 2 }}>
-                    {balance < wager ? 'INSUFFICIENT FUNDS' : 'INITIATE RUN'}
+                    {playDisabled ? 'FINALIZE/WAIT' : (balance < wager ? 'INSUFFICIENT FUNDS' : 'INITIATE RUN')}
                   </span>
+                </button>
+              </div>
+
+              {/* Quick actions */}
+              <div style={styles.quickActionsRow}>
+                <button onClick={() => setShowHistory(true)} style={styles.quickActionBtn}>
+                  HISTORY
+                </button>
+                <button onClick={() => setShowLeaderboard(true)} style={styles.quickActionBtn}>
+                  LEADERBOARD
                 </button>
               </div>
 
@@ -198,7 +263,7 @@ const MainMenu = () => {
                 onClick={disconnect}
                 style={{
                   background: 'none', border: 'none', color: '#444', 
-                  fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.1em', marginTop: '5px'
+                  fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.1em', marginTop: '2px'
                 }}
               >
                 [ DISCONNECT ]
@@ -228,6 +293,10 @@ const MainMenu = () => {
             </div>
           )}
 
+          <button onClick={() => setShowHowToPlay(true)} style={styles.howToPlayLink}>
+            [ MANUAL ]
+          </button>
+
           {/* Footer Info */}
           {connected && (
              <div style={styles.controlsFooter}>
@@ -238,10 +307,6 @@ const MainMenu = () => {
              </div>
            </div>
           )}
-
-          <button onClick={() => setShowHowToPlay(true)} style={styles.howToPlayLink}>
-            [ MANUAL ]
-          </button>
         </div>
       </div>
 
@@ -279,50 +344,89 @@ const MainMenu = () => {
           </div>
         </div>
       )}
-    </div>
-  );
+
+      <HistoryModal
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        walletCtx={walletCtx}
+      />
+      <LeaderboardModal
+        open={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+      />
+	    </div>
+	  );
 };
 
 const styles = {
   overlay: {
     position: 'fixed', inset: 0, zIndex: 1000,
-    display: 'flex', justifyContent: 'center', alignItems: 'center',
+    display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
+    overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch',
+    paddingTop: 'calc(clamp(10px, 2vh, 20px) + env(safe-area-inset-top))',
+    paddingBottom: 'env(safe-area-inset-bottom)',
     fontFamily: "'Rajdhani', 'Segoe UI', sans-serif", perspective: '1000px',
-  },
-  vignette: {
-    position: 'absolute', inset: 0,
     background: 'radial-gradient(circle at center, rgba(10,10,20,0.85) 0%, rgba(0,0,0,0.98) 100%)',
-    zIndex: -1, backdropFilter: 'blur(5px)',
+    backdropFilter: 'blur(5px)',
+    WebkitBackdropFilter: 'blur(5px)',
   },
   contentWrapper: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: '20px', width: '100%', transition: 'filter 0.3s ease',
+    position: 'relative',
+    zIndex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 'clamp(10px, 2vh, 18px)',
+    width: '100%',
+    transition: 'filter 0.3s ease',
+    minHeight: 'calc(100vh - 24px)',
   },
   header: { 
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     textAlign: 'center', width: 'auto', maxWidth: '95vw',
   },
   studioLabel: {
-    fontSize: '0.8rem', letterSpacing: '0.4em', color: '#888', marginBottom: '5px', fontWeight: '700'
+    fontSize: '0.75rem', letterSpacing: '0.35em', color: '#888', marginBottom: '2px', fontWeight: '700'
   },
   title: {
     fontFamily: "'Orbitron', sans-serif", 
-    fontSize: 'clamp(1.5rem, 9vw, 6rem)', 
+    fontSize: 'clamp(1.5rem, 8vw, 5.2rem)', 
     margin: 0, color: '#fff', letterSpacing: '0.05em', fontWeight: '900',
     textShadow: '0 0 30px rgba(0, 246, 255, 0.4)',
     whiteSpace: 'nowrap',
   },
   subtitle: { 
-    color: 'rgba(255,255,255,0.8)', letterSpacing: '0.5em', fontSize: '0.7rem', marginTop: '5px',
+    color: 'rgba(255,255,255,0.8)', letterSpacing: '0.45em', fontSize: '0.68rem', marginTop: '2px',
     fontWeight: '700', textShadow: '0 0 10px rgba(0,0,0,0.5)', textAlign: 'center'
   },
   container: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    gap: '15px', width: '90%', maxWidth: '450px', 
+    gap: 'clamp(10px, 1.6vh, 14px)', width: 'min(450px, 92vw)', 
+  },
+  quickActionsRow: {
+    width: '100%',
+    display: 'flex',
+    gap: '10px',
+    justifyContent: 'space-between',
+  },
+  quickActionBtn: {
+    flex: 1,
+    background: 'rgba(0, 246, 255, 0.06)',
+    border: '1px solid rgba(0, 246, 255, 0.25)',
+    color: 'rgba(0, 246, 255, 0.9)',
+    padding: '10px 12px',
+    fontSize: '0.85rem',
+    cursor: 'pointer',
+    fontFamily: "'Rajdhani', sans-serif",
+    fontWeight: '700',
+    letterSpacing: '0.12em',
+    borderRadius: '4px',
+    transition: 'all 0.2s',
   },
   statsCard: {
     background: 'rgba(0, 20, 40, 0.8)', border: '1px solid rgba(0, 246, 255, 0.2)',
-    padding: '20px', borderRadius: '4px', width: '100%',
+    padding: 'clamp(12px, 1.8vh, 18px)', borderRadius: '4px', width: '100%',
     display: 'flex', flexDirection: 'column', gap: '10px',
   },
   row: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
@@ -332,7 +436,7 @@ const styles = {
   
   // BANKING STYLES
   bankingPanel: {
-    width: '100%', background: 'rgba(0, 40, 20, 0.6)', padding: '15px',
+    width: '100%', background: 'rgba(0, 40, 20, 0.6)', padding: 'clamp(12px, 1.6vh, 15px)',
     border: '1px solid rgba(0, 255, 136, 0.3)', borderRadius: '4px',
     display: 'flex', flexDirection: 'column', gap: '5px'
   },
@@ -343,13 +447,13 @@ const styles = {
   },
   actionBtn: {
     background: 'rgba(0, 255, 136, 0.1)', border: '1px solid #00ff88', color: '#00ff88',
-    padding: '10px 15px', fontSize: '0.9rem', cursor: 'pointer',
+    padding: '9px 14px', fontSize: '0.9rem', cursor: 'pointer',
     fontFamily: "'Rajdhani', sans-serif", fontWeight: 'bold', letterSpacing: '0.1em',
     borderRadius: '4px', transition: 'all 0.2s'
   },
 
   wagerControl: {
-    width: '100%', background: 'rgba(0, 0, 0, 0.3)', padding: '15px',
+    width: '100%', background: 'rgba(0, 0, 0, 0.3)', padding: 'clamp(12px, 1.6vh, 15px)',
     border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px'
   },
   wagerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0' },
@@ -370,14 +474,14 @@ const styles = {
   button: {
     position: 'relative', background: 'rgba(0, 246, 255, 0.1)',
     border: '1px solid rgba(0, 246, 255, 0.3)', color: '#fff',
-    padding: '15px 0', fontSize: '1.1rem', letterSpacing: '0.2em', cursor: 'pointer',
+    padding: '13px 0', fontSize: '1.05rem', letterSpacing: '0.2em', cursor: 'pointer',
     width: '100%', textAlign: 'center', transition: 'all 0.3s',
   },
   buttonHover: { background: 'rgba(0, 246, 255, 0.3)', borderColor: '#00f6ff', letterSpacing: '0.3em' },
-  controlsFooter: { marginTop: '10px', opacity: 0.8 },
+  controlsFooter: { marginTop: '4px', opacity: 0.8, textAlign: 'center' },
   howToPlayLink: {
     background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)',
-    fontSize: '0.9rem', cursor: 'pointer', marginTop: '10px',
+    fontSize: '0.9rem', cursor: 'pointer', marginTop: '4px',
     letterSpacing: '0.1em', transition: 'color 0.2s',
   },
   modalOverlay: {

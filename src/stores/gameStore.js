@@ -12,6 +12,14 @@ const PROGRAM_ID_STR = typeof PROGRAM_ID === 'string'
 const DECIMALS = 9; // Standard Solana Token Decimals
 const SCALE = new BN(10).pow(new BN(DECIMALS));
 
+const getFunctionsBaseUrl = () =>
+  import.meta.env.VITE_FUNCTIONS_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8888' : '');
+const fnUrl = (name) => `${getFunctionsBaseUrl()}/.netlify/functions/${name}`;
+const tokenStorageKey = (walletPk) => `streamweaveSessionToken:${walletPk}`;
+
+let authInFlightWallet = null;
+let authInFlightPromise = null;
+
 // Convert UI amount (string/number) to raw BN without float rounding.
 const parseUiAmountToBN = (uiAmount) => {
   if (BN.isBN(uiAmount)) return uiAmount;
@@ -64,125 +72,173 @@ const buildProgram = (connection, wallet) => {
 
 export const useGameStore = create(
   persist(
-    (set, get) => ({
-      status: 'idle',
-      sessionOwner: null,
-      sessionDirty: false,
-      needsFinalization: false,
-      escrowRaw: new BN(0),
-      balanceRaw: new BN(0),
-      balance: 0,
-      wager: 1000, // This is now in UI UNITS (e.g., 1000 WEAVE)
-      lastWager: 0,
-      payout: 0,
-      bankedMultiplier: 0.0,
+	    (set, get) => ({
+	      status: 'idle',
+	      sessionOwner: null,
+	      sessionDirty: false,
+	      needsFinalization: false,
+	      escrowRaw: new BN(0),
+	      balanceRaw: new BN(0),
+	      balance: 0,
+	      sessionToken: null,
+	      sessionTokenWallet: null,
+	      authCooldownUntil: 0,
+	      withdrawInFlight: false,
+	      activeRoundId: null,
+	      activeExpiresAt: null,
+	      streaksMs: [],
+	      wager: 1000, // This is now in UI UNITS (e.g., 1000 WEAVE)
+	      lastWager: 0,
+	      payout: 0,
+	      bankedMultiplier: 0.0,
       
       fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
       boostStreak: 0, currentTier: 0, isBoosting: false,
-      speed: 22, maxSpeed: 80, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
+      speed: 22, maxSpeed: 90, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
 
       setShipPos: (pos) => set({ shipPos: pos }),
       setShake: (v) => set({ shake: v }),
       setWager: (amount) => set({ wager: amount }),
 
-      // 1. SYNC SESSION
+	      // 0. AUTH (one-time per device; no per-round wallet popups)
+	      ensureSession: async (wallet) => {
+	        if (!wallet?.publicKey) throw new Error('Connect wallet');
+	        const walletPk = wallet.publicKey.toBase58();
+
+	        const { authCooldownUntil } = get();
+	        if (authCooldownUntil && Date.now() < authCooldownUntil) {
+	          throw new Error('Login pending/canceled; waiting before retry.');
+	        }
+
+	        if (authInFlightPromise && authInFlightWallet === walletPk) return await authInFlightPromise;
+
+	        const { sessionToken, sessionTokenWallet } = get();
+	        if (sessionToken && sessionTokenWallet === walletPk) return sessionToken;
+
+	        const stored = localStorage.getItem(tokenStorageKey(walletPk));
+	        if (stored) {
+	          set({ sessionToken: stored, sessionTokenWallet: walletPk, sessionOwner: walletPk });
+	          return stored;
+	        }
+
+	        if (!wallet.signMessage) throw new Error('Wallet must support message signing to play');
+
+	        authInFlightWallet = walletPk;
+	        authInFlightPromise = (async () => {
+	          try {
+	            const nonceRes = await fetch(fnUrl('auth-nonce'), {
+	              method: 'POST',
+	              headers: { 'Content-Type': 'application/json' },
+	              body: JSON.stringify({ wallet: walletPk }),
+	            });
+	            if (!nonceRes.ok) {
+	              const err = await nonceRes.json().catch(() => ({}));
+	              throw new Error(err.error || 'Auth nonce failed');
+	            }
+
+	            const { message } = await nonceRes.json();
+	            const signature = await wallet.signMessage(new TextEncoder().encode(message));
+
+	            const verifyRes = await fetch(fnUrl('auth-verify'), {
+	              method: 'POST',
+	              headers: { 'Content-Type': 'application/json' },
+	              body: JSON.stringify({ wallet: walletPk, message, signature: Array.from(signature) }),
+	            });
+	            if (!verifyRes.ok) {
+	              const err = await verifyRes.json().catch(() => ({}));
+	              throw new Error(err.error || 'Auth verify failed');
+	            }
+
+	            const verified = await verifyRes.json();
+	            const token = verified.token;
+	            if (!token) throw new Error('Auth verify returned no token');
+
+	            localStorage.setItem(tokenStorageKey(walletPk), token);
+	            set({ sessionToken: token, sessionTokenWallet: walletPk, sessionOwner: walletPk, authCooldownUntil: 0 });
+	            return token;
+	          } catch (e) {
+	            const msg = (e?.message || String(e)).toLowerCase();
+	            const likelyUserCancel =
+	              msg.includes('reject') || msg.includes('declin') || msg.includes('cancel') || msg.includes('user');
+	            if (likelyUserCancel) {
+	              set({ authCooldownUntil: Date.now() + 30_000 });
+	            }
+	            throw e;
+	          } finally {
+	            authInFlightWallet = null;
+	            authInFlightPromise = null;
+	          }
+	        })();
+
+	        return await authInFlightPromise;
+	      },
+
+      refreshSession: async () => {
+        const { sessionToken, sessionOwner } = get();
+        if (!sessionToken || !sessionOwner) return;
+
+        const res = await fetch(fnUrl('session-state'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'session-state failed');
+        }
+
+        const data = await res.json();
+        const playBalanceRaw = new BN(data.playBalanceRaw);
+        const escrowObservedRaw = new BN(data.escrowObservedRaw);
+        const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+
+        set({
+          needsFinalization: !!data.needsFinalization,
+          escrowRaw: escrowObservedRaw,
+          balanceRaw: playBalanceRaw,
+          balance: Number(uiBalanceStr),
+          activeRoundId: data.activeRoundId,
+          activeExpiresAt: data.activeExpiresAt,
+        });
+      },
+
+      abortActiveRound: async (walletCtx) => {
+        const wallet = walletCtx;
+        if (!wallet?.publicKey) throw new Error('Connect wallet');
+        const token = await get().ensureSession(wallet);
+        const res = await fetch(fnUrl('round-abort'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Failed to clear active round');
+
+        set({ activeRoundId: null, activeExpiresAt: null });
+        await get().refreshSession();
+      },
+
+      // 1. SYNC SESSION (authoritative balance from backend)
       syncSession: async (wallet) => {
         if (!wallet || !wallet.publicKey) return;
-        
         try {
-          const connection = new web3.Connection(NETWORK, "confirmed");
-          const { program, programId, anchorWallet } = buildProgram(connection, wallet);
-          const walletPk = anchorWallet.publicKey.toBase58();
-
-          const [playerStatePda] = web3.PublicKey.findProgramAddressSync(
-            [utils.bytes.utf8.encode("player_state"), anchorWallet.publicKey.toBuffer()],
-            programId
-          );
-
-          const account = await program.account.playerState.fetchNullable(playerStatePda);
-          
-          if (account) {
-            const escrowRaw = account.balance;
-            const uiEscrowStr = formatRawToUiString(escrowRaw, 6);
-
-            set((s) => {
-              const ownerChanged = s.sessionOwner && s.sessionOwner !== walletPk;
-
-              // If wallet changed, reset local session and show escrow as the starting balance.
-              if (ownerChanged) {
-                return {
-                  sessionOwner: walletPk,
-                  sessionDirty: false,
-                  needsFinalization: false,
-                  escrowRaw,
-                  balanceRaw: escrowRaw,
-                  balance: Number(uiEscrowStr),
-                };
-              }
-
-              if (s.sessionDirty) {
-                const localAtZero = BN.isBN(s.balanceRaw) && s.balanceRaw.eq(new BN(0));
-                const needsFinalization = localAtZero && escrowRaw.gt(new BN(0));
-                return {
-                  sessionOwner: walletPk,
-                  escrowRaw,
-                  needsFinalization,
-                };
-              }
-
-              return {
-                sessionOwner: walletPk,
-                sessionDirty: false,
-                needsFinalization: false,
-                escrowRaw,
-                balanceRaw: escrowRaw,
-                balance: Number(uiEscrowStr),
-              };
-            });
-
-            const { sessionDirty, balanceRaw } = get();
-            const needsFinalization =
-              sessionDirty && BN.isBN(balanceRaw) && balanceRaw.eq(new BN(0)) && escrowRaw.gt(new BN(0));
-
-            if (needsFinalization) {
-              console.log(`⚠️ Unsettled escrow detected: ${uiEscrowStr} (finalize session to sweep losses).`);
-            } else {
-              console.log("✅ Synced Escrow:", uiEscrowStr);
-            }
-          } else {
-            console.log("🆕 New User: 0 Balance");
-            set((s) => {
-              const ownerChanged = s.sessionOwner && s.sessionOwner !== walletPk;
-              if (ownerChanged || !s.sessionDirty) {
-                return {
-                  sessionOwner: walletPk,
-                  sessionDirty: false,
-                  needsFinalization: false,
-                  escrowRaw: new BN(0),
-                  balanceRaw: new BN(0),
-                  balance: 0,
-                };
-              }
-              return { sessionOwner: walletPk, escrowRaw: new BN(0), needsFinalization: false };
-            });
-          }
+          await get().ensureSession(wallet);
+          await get().refreshSession();
         } catch (e) {
           console.log("Sync Log:", e.message);
         }
       },
 
       // 2. DEPOSIT FUNDS (Fixed Math)
-      depositFunds: async (walletCtx, amount) => {
-        const wallet = walletCtx;
-        try {
-          if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
-
-          const { sessionDirty, balanceRaw } = get();
-          if (sessionDirty && BN.isBN(balanceRaw) && balanceRaw.eq(new BN(0))) {
-            return alert("You have an unfinished session. Click FINALIZE SESSION before depositing again.");
-          }
-          
-          const connection = new web3.Connection(NETWORK, "confirmed");
+	      depositFunds: async (walletCtx, amount) => {
+	        const wallet = walletCtx;
+	        try {
+	          if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
+	          if (get().needsFinalization) {
+	            return alert("Finalize the session first (sweeps escrowed losses to the house).");
+	          }
+	          
+	          const connection = new web3.Connection(NETWORK, "confirmed");
           const { program, programId, anchorWallet } = buildProgram(connection, wallet);
           const mintPk = new web3.PublicKey(WEAVE_MINT);
 
@@ -263,6 +319,8 @@ export const useGameStore = create(
       // 3. WITHDRAW FUNDS (Backend Integrated)
       withdrawFunds: async (walletCtx) => {
         const wallet = walletCtx;
+        if (get().withdrawInFlight) return;
+        set({ withdrawInFlight: true });
         try {
           if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
           
@@ -302,19 +360,20 @@ export const useGameStore = create(
           // 2. FETCH SIGNATURE FROM BACKEND
           // Local dev: run `netlify dev` (default `http://localhost:8888`) so `/.netlify/functions/*` works.
           // Prod: keep it relative so Netlify serves the function.
-          const FUNCTIONS_BASE_URL =
-            import.meta.env.VITE_FUNCTIONS_BASE_URL ||
-            (import.meta.env.DEV ? "http://localhost:8888" : "");
-          const API_URL = `${FUNCTIONS_BASE_URL}/.netlify/functions/settle-game`;
-          
-          const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userPubkey: anchorWallet.publicKey.toBase58(),
-              requestedAmount: requestedRawAmount.toString(), // Send Raw String
-            })
-          });
+	          const FUNCTIONS_BASE_URL =
+	            import.meta.env.VITE_FUNCTIONS_BASE_URL ||
+	            (import.meta.env.DEV ? "http://localhost:8888" : "");
+	          const API_URL = `${FUNCTIONS_BASE_URL}/.netlify/functions/settle-game`;
+	          const token = await get().ensureSession(wallet);
+	          
+	          const response = await fetch(API_URL, {
+	            method: 'POST',
+	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+	            body: JSON.stringify({
+	              userPubkey: anchorWallet.publicKey.toBase58(),
+	              requestedAmount: requestedRawAmount.toString(), // Send Raw String
+	            })
+	          });
 
           if (!response.ok) {
              const err = await response.json();
@@ -427,41 +486,74 @@ export const useGameStore = create(
         } catch (e) {
           console.error("Withdraw Error:", e);
           alert("Withdraw Failed: " + e.message);
+        } finally {
+          set({ withdrawInFlight: false });
         }
       },
 
-      // --- GAMEPLAY LOGIC (Standard) ---
-      start: () => {
-        const { balance, balanceRaw, wager, runId } = get()
-        if (balance < wager) { // Wager is now in UI Units, Balance is UI Units. Safe to compare.
-            alert("INSUFFICIENT FUNDS. Please Deposit $WEAVE.");
-            return;
-        }
-        const wagerRaw = parseUiAmountToBN(wager);
-        const nextRaw = (balanceRaw ?? new BN(0)).sub(wagerRaw);
-        set({ 
-          status: 'running', 
-          sessionDirty: true,
-          balance: balance - wager, 
-          balanceRaw: nextRaw,
-          lastWager: wager,
-          payout: 0,
-          bankedMultiplier: 0.0,
-          boostStreak: 0, currentTier: 0, fuel: 100, speed: 22,
-          runId: runId + 1 
-        })
-      },
-      setBoosting: (active) => {
-        const { status, boostStreak, bankedMultiplier } = get()
-        if (status !== 'running') return
-        if (active) {
-          set({ isBoosting: true })
-        } else {
-          let addedMult = 0.0;
-          if (boostStreak >= 50) addedMult = 20.0; else if (boostStreak >= 40) addedMult = 8.0; else if (boostStreak >= 30) addedMult = 3.5; else if (boostStreak >= 20) addedMult = 1.5; else if (boostStreak >= 10) addedMult = 0.5;
-          set({ isBoosting: false, boostStreak: 0, currentTier: 0, bankedMultiplier: bankedMultiplier + addedMult })
-        }
-      },
+	      // --- GAMEPLAY LOGIC (Standard) ---
+	      start: async (walletCtx) => {
+	        const wallet = walletCtx;
+	        const { balance, wager, runId, needsFinalization, activeRoundId } = get();
+	        if (needsFinalization) return alert("Finalize the session first.");
+	        if (activeRoundId) return alert("A round is already active (possibly on another device).");
+	        if (balance < wager) return alert("INSUFFICIENT FUNDS. Please Deposit $WEAVE.");
+	        if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
+
+	        try {
+	          const token = await get().ensureSession(wallet);
+	          const res = await fetch(fnUrl('round-start'), {
+	            method: 'POST',
+	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+	            body: JSON.stringify({ wagerUi: wager }),
+	          });
+	          if (!res.ok) {
+	            const err = await res.json().catch(() => ({}));
+	            throw new Error(err.error || 'round-start failed');
+	          }
+	          const data = await res.json();
+	          const playBalanceRaw = new BN(data.playBalanceRaw);
+	          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+
+	          set({
+	            status: 'running',
+	            sessionDirty: true,
+	            activeRoundId: data.roundId,
+	            activeExpiresAt: data.expiresAt,
+	            balanceRaw: playBalanceRaw,
+	            balance: Number(uiBalanceStr),
+	            lastWager: wager,
+	            payout: 0,
+	            bankedMultiplier: 0.0,
+	            streaksMs: [],
+	            boostStreak: 0,
+	            currentTier: 0,
+	            fuel: 100,
+	            speed: 22,
+	            runId: runId + 1,
+	          });
+	        } catch (e) {
+	          alert(e.message || String(e));
+	        }
+	      },
+	      setBoosting: (active) => {
+	        const { status, boostStreak, bankedMultiplier, streaksMs } = get()
+	        if (status !== 'running') return
+	        if (active) {
+	          set({ isBoosting: true })
+	        } else {
+	          const durationMs = Math.floor(boostStreak * 1000);
+	          let addedMult = 0.0;
+	          if (boostStreak >= 50) addedMult = 20.0; else if (boostStreak >= 40) addedMult = 8.0; else if (boostStreak >= 30) addedMult = 3.5; else if (boostStreak >= 20) addedMult = 1.5; else if (boostStreak >= 10) addedMult = 0.5;
+	          set({
+	            isBoosting: false,
+	            boostStreak: 0,
+	            currentTier: 0,
+	            bankedMultiplier: bankedMultiplier + addedMult,
+	            streaksMs: durationMs > 0 ? [ ...(streaksMs || []), durationMs ] : (streaksMs || []),
+	          })
+	        }
+	      },
       tickGameLoop: (delta) => set((s) => {
         if (s.status !== 'running') return {}
         let newFuel = s.isBoosting ? Math.min(s.maxFuel, s.fuel + s.fuelRegen * delta) : s.fuel - s.fuelDrain * delta
@@ -474,21 +566,42 @@ export const useGameStore = create(
         if (s.status !== 'running') return {}
         return { speed: s.isBoosting ? Math.min(s.maxSpeed, s.speed + s.maxSpeed * 0.5 * delta) : Math.max(22, s.speed - s.maxSpeed * 1.5 * delta) }
       }),
-      crash: () => {
-        const { lastWager, bankedMultiplier, balance, balanceRaw } = get()
-        const winAmount = Math.floor(lastWager * bankedMultiplier);
-        const winRaw = parseUiAmountToBN(winAmount);
-        const nextRaw = (balanceRaw ?? new BN(0)).add(winRaw);
-        set({
-          status: 'crashed',
-          isBoosting: false,
-          payout: winAmount,
-          balance: balance + winAmount,
-          balanceRaw: nextRaw,
-          // If the player busted to exactly 0, require a finalize sweep before new deposits.
-          needsFinalization: nextRaw.eq(new BN(0)),
-        })
-      },
+	      crash: async () => {
+	        const { activeRoundId, streaksMs, sessionToken } = get();
+	        set({ status: 'crashed', isBoosting: false });
+	        if (!activeRoundId) return;
+	        if (!sessionToken) return alert("Session auth missing. Reconnect wallet.");
+
+	        try {
+	          const res = await fetch(fnUrl('round-end'), {
+	            method: 'POST',
+	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+	            body: JSON.stringify({ roundId: activeRoundId, streaksMs: streaksMs || [] }),
+	          });
+	          if (!res.ok) {
+	            const err = await res.json().catch(() => ({}));
+	            throw new Error(err.error || 'round-end failed');
+	          }
+	          const data = await res.json();
+	          const playBalanceRaw = new BN(data.playBalanceRaw);
+	          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+
+	          set({
+	            activeRoundId: null,
+	            activeExpiresAt: null,
+	            streaksMs: [],
+	            bankedMultiplier: Number(data.multiplier) || 0,
+	            payout: Number(data.payoutUi) || 0,
+	            balanceRaw: playBalanceRaw,
+	            balance: Number(uiBalanceStr),
+	          });
+
+	          await get().refreshSession();
+	        } catch (e) {
+	          console.error("Round settlement failed:", e);
+	          alert(`Round settlement failed: ${e.message || e}`);
+	        }
+	      },
       reset: () => set((s) => ({ status: 'idle' })),
       refill: () => alert("Please use the 'Deposit' button to add funds."), 
     }),
@@ -502,6 +615,9 @@ export const useGameStore = create(
         escrowRaw: state.escrowRaw,
         balanceRaw: state.balanceRaw,
         balance: state.balance,
+        sessionToken: state.sessionToken,
+        sessionTokenWallet: state.sessionTokenWallet,
+        authCooldownUntil: state.authCooldownUntil,
       }),
       merge: (persistedState, currentState) => {
         const next = { ...currentState, ...(persistedState || {}) };

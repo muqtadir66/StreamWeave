@@ -1,88 +1,89 @@
 import { Handler } from '@netlify/functions';
 import nacl from 'tweetnacl';
 import { PublicKey } from '@solana/web3.js';
-import { Connection } from '@solana/web3.js';
-import { getAssociatedTokenAddress } from '@solana/spl-token';
+import { withCors } from './lib/cors';
+import { requireSession } from './lib/session';
+import { supabaseRpc } from './lib/supabase';
+import { getVaultAmounts } from './lib/solana';
 
-const PROGRAM_ID = new PublicKey("6AyQbmH2bSeip2vZWR82NpJ637SQRtrAU4bt2j2yVPwN");
-const WEAVE_MINT = new PublicKey("S3Eqjw8eFu2w11KDKQ7SWuynmvBpjHH4cNeMgXFRvsQ");
+type StateRow = {
+  play_balance_raw: number | string;
+  escrow_observed_raw: number | string;
+  needs_finalization: boolean;
+  active_round_id: string | null;
+  active_expires_at: string | null;
+};
+
+type WithdrawPrepareRow = {
+  authorized_amount_raw: number | string;
+  nonce_raw: number | string;
+  expiry_unix: number | string;
+};
 
 export const handler: Handler = async (event) => {
-  // CORS Headers (Allows your frontend to call this)
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
-
-  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
+  if (event.httpMethod === 'OPTIONS') return withCors({ statusCode: 200, body: '' });
+  if (event.httpMethod !== 'POST') return withCors({ statusCode: 405, body: 'Method Not Allowed' });
 
   try {
-    const { userPubkey, requestedAmount } = JSON.parse(event.body || '{}');
-
-    if (!userPubkey || requestedAmount === undefined) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing fields' }) };
-    }
+    // Auth: require a session token so the server can use authoritative DB state.
+    const session = await requireSession(event);
+    const userPubkey = session.wallet;
 
     // --- LOAD SECRET KEY ---
     const authKeyString = process.env.GAME_AUTHORITY_KEY;
     if (!authKeyString) {
-        throw new Error("Server Missing GAME_AUTHORITY_KEY");
+      throw new Error("Server Missing GAME_AUTHORITY_KEY");
     }
     const secretKey = Uint8Array.from(JSON.parse(authKeyString));
     const keypair = nacl.sign.keyPair.fromSecretKey(secretKey);
 
     const userKey = new PublicKey(userPubkey);
 
-    // --- SERVER AUTHZ (DEVNET SAFE DEFAULTS) ---
-    // For now, the server "authorizes" a full withdraw-all with a safety cap based on on-chain vault + treasury.
-    const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
-    const connection = new Connection(rpcUrl, "confirmed");
+    // Reconcile escrow with DB before reading play balance (so deposits reflect immediately).
+    const { vaultAmount, treasuryAmount } = await getVaultAmounts(userPubkey);
+    await supabaseRpc('sync_escrow', { p_wallet: userPubkey, p_escrow_raw: vaultAmount.toString() });
 
-    const [playerStatePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("player_state"), userKey.toBuffer()],
-      PROGRAM_ID
-    );
-    const playerVaultAta = await getAssociatedTokenAddress(WEAVE_MINT, playerStatePda, true);
+    // Authoritative amount comes from DB (play balance), not from the client.
+    const rows = await supabaseRpc<StateRow[]>('session_state', { p_wallet: userPubkey });
+    const row = rows?.[0];
+    if (!row) throw new Error('Session state not found');
+    if (row.active_round_id) throw new Error('Active round in progress (end/expire round before withdrawing)');
 
-    let vaultAmount = 0n;
-    try {
-      const bal = await connection.getTokenAccountBalance(playerVaultAta);
-      vaultAmount = BigInt(bal.value.amount);
-    } catch {
-      vaultAmount = 0n;
-    }
-
-    const [treasuryPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("treasury")],
-      PROGRAM_ID
-    );
-    const treasuryAta = await getAssociatedTokenAddress(WEAVE_MINT, treasuryPda, true);
-
-    let treasuryAmount = 0n;
-    try {
-      const bal = await connection.getTokenAccountBalance(treasuryAta);
-      treasuryAmount = BigInt(bal.value.amount);
-    } catch {
-      treasuryAmount = 0n;
-    }
-
-    const maxMultiplier = BigInt(process.env.MAX_PAYOUT_MULTIPLIER || "20");
-    const requested = BigInt(requestedAmount);
-    const capByMultiplier = vaultAmount * maxMultiplier;
-    const capByLiquidity = vaultAmount + treasuryAmount;
-    const authorizedAmount = [requested, capByMultiplier, capByLiquidity].reduce(
-      (min, v) => (v < min ? v : min),
-      requested
-    );
+    const playBalanceRaw = BigInt(String(row.play_balance_raw));
+    const requested = playBalanceRaw; // withdraw-all of current play balance
 
     // --- NONCE + EXPIRY (anti-replay) ---
-    // Nonce must monotonically increase per player (we use millis + random suffix).
-    const nowMs = BigInt(Date.now());
-    const rand = BigInt(Math.floor(Math.random() * 65536));
-    const nonce = (nowMs << 16n) + rand;
-    const expiry = BigInt(Math.floor(Date.now() / 1000) + 120); // +120s
+    // IMPORTANT: This must be idempotent to prevent double-withdraw.
+    // If the user clicks withdraw twice quickly, we must return the same nonce/expiry so the
+    // on-chain nonce check rejects the duplicate submission.
+    const prepared = await supabaseRpc<WithdrawPrepareRow[]>('withdraw_prepare', {
+      p_wallet: userPubkey,
+      p_amount_raw: requested.toString(),
+      p_ttl_seconds: 120,
+    });
+    const prep = prepared?.[0];
+    if (!prep) throw new Error('withdraw_prepare returned no rows');
+    const authorizedAmount = BigInt(String(prep.authorized_amount_raw));
+    const nonce = BigInt(String(prep.nonce_raw));
+    const expiry = BigInt(String(prep.expiry_unix));
+
+    // Never authorize more than current DB balance (safety).
+    if (authorizedAmount > requested) {
+      throw new Error('Withdrawal authorization out of sync (try again in ~2 minutes)');
+    }
+
+    // --- SERVER AUTHZ (DEVNET SAFE DEFAULTS) ---
+    // Cap only by on-chain vault + treasury liquidity.
+    const capByLiquidity = vaultAmount + treasuryAmount;
+    if (authorizedAmount > capByLiquidity) {
+      throw new Error(
+        `Insufficient house liquidity to pay ${authorizedAmount.toString()} units (available: ${capByLiquidity.toString()})`
+      );
+    }
+    const U64_MAX = (1n << 64n) - 1n;
+    if (authorizedAmount < 0n || authorizedAmount > U64_MAX) {
+      throw new Error(`Authorized amount out of range for u64: ${authorizedAmount.toString()}`);
+    }
 
     // --- CONSTRUCT MESSAGE ---
     // [user_pubkey(32) | authorized_amount(u64 LE) | nonce(u64 LE) | expiry(u64 LE)]
@@ -105,21 +106,20 @@ export const handler: Handler = async (event) => {
     // --- SIGN ---
     const signature = nacl.sign.detached(message, keypair.secretKey);
 
-    return {
+    return withCors({
       statusCode: 200,
-      headers,
       body: JSON.stringify({
-        signature: Array.from(signature), // Send as number array
+        signature: Array.from(signature),
         authorizedAmount: authorizedAmount.toString(),
         nonce: nonce.toString(),
         expiry: expiry.toString(),
         refereePubkey: new PublicKey(keypair.publicKey).toBase58(),
-        status: 'approved'
+        status: 'approved',
       }),
-    };
+    });
 
   } catch (error) {
     console.error("Signing Error:", error);
-    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
+    return withCors({ statusCode: 500, body: JSON.stringify({ error: (error as any).message }) });
   }
 };

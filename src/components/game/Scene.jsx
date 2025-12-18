@@ -1,6 +1,6 @@
 import React from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useDrag } from '@use-gesture/react'
 import Lights from './Lights'
@@ -10,6 +10,7 @@ import CameraRig from './CameraRig'
 import MainMenu from './MainMenu'
 import BoostStreakHUD from './BoostStreakHUD'
 import { useGameStore } from '../../stores/gameStore'
+import { useWallet } from '@solana/wallet-adapter-react';
 
 function GameLoop() {
   const status = useGameStore((s) => s.status)
@@ -25,6 +26,9 @@ function GameLoop() {
 
 function Scene() {
   const [mobileSteer, setMobileSteer] = useState({ x: 0, y: 0 })
+  const joystickPointerIdRef = useRef(null)
+  const boostPointerIdRef = useRef(null)
+  const walletCtx = useWallet();
   const setBoosting = useGameStore((s) => s.setBoosting);
   const status = useGameStore((s) => s.status)
   const start = useGameStore((s) => s.start)
@@ -41,26 +45,73 @@ function Scene() {
   const isProfit = bankedMultiplier >= 1.0;
 
   // Input Handling
-  const bind = useDrag(({ active, movement: [mx, my] }) => {
+  const bind = useDrag(({ active, movement: [mx, my], event }) => {
     if (active) {
+        if (joystickPointerIdRef.current == null && event?.pointerId != null) {
+          joystickPointerIdRef.current = event.pointerId
+        }
         const dist = Math.sqrt(mx * mx + my * my);
         const maxDist = 50;
         if (dist > maxDist) setMobileSteer({ x: mx / dist, y: -my / dist });
         else setMobileSteer({ x: mx / maxDist, y: -my / maxDist });
     } else {
+        joystickPointerIdRef.current = null
         setMobileSteer({ x: 0, y: 0 });
     }
   }, { pointer: { capture: true, keys: false } })
 
   useEffect(() => {
-    const handlePointerUp = () => setMobileSteer({ x: 0, y: 0 });
-    window.addEventListener('pointerup', handlePointerUp);
-    return () => window.removeEventListener('pointerup', handlePointerUp);
-  }, []);
+    const stopAllInputs = () => {
+      boostPointerIdRef.current = null
+      joystickPointerIdRef.current = null
+      setBoosting(false)
+      setMobileSteer({ x: 0, y: 0 })
+    }
+
+    const handlePointerEnd = (e) => {
+      const pointerId = e?.pointerId
+      if (pointerId == null) return
+
+      if (boostPointerIdRef.current === pointerId) {
+        boostPointerIdRef.current = null
+        setBoosting(false)
+      }
+
+      if (joystickPointerIdRef.current === pointerId) {
+        joystickPointerIdRef.current = null
+        setMobileSteer({ x: 0, y: 0 })
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopAllInputs()
+    }
+
+    window.addEventListener('pointerup', handlePointerEnd, { passive: true })
+    window.addEventListener('pointercancel', handlePointerEnd, { passive: true })
+    window.addEventListener('blur', stopAllInputs)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('pointercancel', handlePointerEnd)
+      window.removeEventListener('blur', stopAllInputs)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [setBoosting]);
+
+  useEffect(() => {
+    if (status !== 'running') {
+      boostPointerIdRef.current = null
+      joystickPointerIdRef.current = null
+      setBoosting(false)
+      setMobileSteer({ x: 0, y: 0 })
+    }
+  }, [status, setBoosting])
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.code === 'Enter' && (status === 'idle' || status === 'crashed')) start()
+      if (e.code === 'Enter' && (status === 'idle' || status === 'crashed')) start(walletCtx)
       if (e.code === 'KeyR' && status === 'crashed') reset()
       if (e.code === 'Escape' && status === 'running') crash()
     }
@@ -75,10 +126,10 @@ function Scene() {
         window.removeEventListener('keydown', onBoost)
         window.removeEventListener('keyup', offBoost)
     }
-  }, [status, start, reset, crash, setBoosting])
+  }, [status, start, reset, crash, setBoosting, walletCtx])
 
-  return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', touchAction: 'none' }}>
+	  return (
+	    <div style={{ position: 'relative', width: '100vw', height: '100vh', touchAction: 'none' }}>
       <Canvas
         camera={{ position: [0, 0, 8], fov: 68 }}
         style={{ background: 'linear-gradient(180deg, #1e3a8a 0%, #374151 50%, #111827 100%)' }}
@@ -128,8 +179,8 @@ function Scene() {
 
       <MainMenu />
       
-      {/* Controls (Hidden when idle) */}
-      <div style={{ display: status === 'running' ? 'block' : 'none' }}>
+	      {/* Controls (Hidden when idle) */}
+	      <div style={{ display: status === 'running' ? 'block' : 'none' }}>
           <div style={{
             position: 'absolute', bottom: '120px', left: 'calc(15vw - 75px)',
             width: '150px', height: '150px', zIndex: 10, pointerEvents: 'auto'
@@ -147,20 +198,41 @@ function Scene() {
             </div>
           </div>
 
-          <div style={{
-            position: 'absolute', bottom: '120px', right: '20px', zIndex: 10, pointerEvents: 'auto'
-          }}>
-            <button
-              onPointerDown={() => setBoosting(true)}
-              onPointerUp={() => setBoosting(false)}
-              onPointerLeave={() => setBoosting(false)}
-              style={{
-                width: '100px', height: '100px', borderRadius: '50%',
-                border: '2px solid #ff4444', background: 'rgba(255, 68, 68, 0.1)',
-                color: '#ff4444', fontWeight: 'bold', fontFamily: 'monospace',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}
-            >
+	          <div style={{
+	            position: 'absolute', bottom: '120px', right: '20px', zIndex: 10, pointerEvents: 'auto'
+	          }}>
+	            <button
+	              onPointerDown={(e) => {
+                  boostPointerIdRef.current = e.pointerId
+                  try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
+                  setBoosting(true)
+                }}
+	              onPointerUp={(e) => {
+                  if (boostPointerIdRef.current === e.pointerId) boostPointerIdRef.current = null
+                  try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+                  setBoosting(false)
+                }}
+	              onPointerCancel={(e) => {
+                  if (boostPointerIdRef.current === e.pointerId) boostPointerIdRef.current = null
+                  try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+                  setBoosting(false)
+                }}
+                onLostPointerCapture={() => {
+                  boostPointerIdRef.current = null
+                  setBoosting(false)
+                }}
+	              onPointerLeave={() => {
+                  // If pointer capture failed for any reason, leaving should still stop boosting.
+                  boostPointerIdRef.current = null
+                  setBoosting(false)
+                }}
+	              style={{
+	                width: '100px', height: '100px', borderRadius: '50%',
+	                border: '2px solid #ff4444', background: 'rgba(255, 68, 68, 0.1)',
+	                color: '#ff4444', fontWeight: 'bold', fontFamily: 'monospace',
+	                display: 'flex', alignItems: 'center', justifyContent: 'center'
+	              }}
+	            >
               BOOST
             </button>
           </div>
