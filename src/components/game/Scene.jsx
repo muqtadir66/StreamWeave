@@ -26,6 +26,7 @@ function GameLoop() {
 function Scene() {
   const [mobileSteer, setMobileSteer] = useState({ x: 0, y: 0 })
   const joystickPointerIdRef = useRef(null)
+  const joystickOriginRef = useRef(null) // { x, y } in client coords (relative drag origin)
   const boostPointerIdRef = useRef(null)
   const joystickElRef = useRef(null)
   const boostBtnRef = useRef(null)
@@ -46,17 +47,22 @@ function Scene() {
   const isProfit = bankedMultiplier >= 1.0;
 
   const JOY_MAX_DIST = 50
+  const JOY_DEADZONE_PX = 4
 
+  // Relative drag joystick: steer is based on movement from initial touch point (swipe style).
   const updateSteerFromPointerEvent = (e) => {
-    const el = joystickElRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
-    let dx = (e.clientX ?? 0) - cx
-    let dy = (e.clientY ?? 0) - cy
+    const origin = joystickOriginRef.current
+    if (!origin) return
+    let dx = (e.clientX ?? 0) - origin.x
+    let dy = (e.clientY ?? 0) - origin.y
     const dist = Math.hypot(dx, dy)
     const max = JOY_MAX_DIST
+
+    if (dist <= JOY_DEADZONE_PX) {
+      setMobileSteer({ x: 0, y: 0 })
+      return
+    }
+
     if (dist > max && dist > 0) {
       dx = (dx / dist) * max
       dy = (dy / dist) * max
@@ -67,6 +73,7 @@ function Scene() {
   const onJoystickPointerDown = (e) => {
     if (joystickPointerIdRef.current != null) return
     joystickPointerIdRef.current = e.pointerId
+    joystickOriginRef.current = { x: e.clientX ?? 0, y: e.clientY ?? 0 }
     try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
     updateSteerFromPointerEvent(e)
   }
@@ -79,6 +86,7 @@ function Scene() {
   const onJoystickPointerUp = (e) => {
     if (joystickPointerIdRef.current !== e.pointerId) return
     joystickPointerIdRef.current = null
+    joystickOriginRef.current = null
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
     setMobileSteer({ x: 0, y: 0 })
   }
@@ -86,6 +94,7 @@ function Scene() {
   const onJoystickPointerCancel = (e) => {
     if (joystickPointerIdRef.current !== e.pointerId) return
     joystickPointerIdRef.current = null
+    joystickOriginRef.current = null
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
     setMobileSteer({ x: 0, y: 0 })
   }
@@ -103,6 +112,7 @@ function Scene() {
 
     boostPointerIdRef.current = null
     joystickPointerIdRef.current = null
+    joystickOriginRef.current = null
     setBoosting(false)
     setMobileSteer({ x: 0, y: 0 })
   }
@@ -122,6 +132,7 @@ function Scene() {
 
       if (joystickPointerIdRef.current === pointerId) {
         joystickPointerIdRef.current = null
+        joystickOriginRef.current = null
         if (joystickElRef.current) {
           try { joystickElRef.current.releasePointerCapture(pointerId) } catch {}
         }
@@ -246,6 +257,7 @@ function Scene() {
                 onPointerCancel={onJoystickPointerCancel}
                 onLostPointerCapture={() => {
                   joystickPointerIdRef.current = null
+                  joystickOriginRef.current = null
                   setMobileSteer({ x: 0, y: 0 })
                 }}
                 onContextMenu={(e) => e.preventDefault()}
