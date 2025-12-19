@@ -2,7 +2,6 @@ import React from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
 
-import { useDrag } from '@use-gesture/react'
 import Lights from './Lights'
 import PlayerShip from './PlayerShip'
 import WorldElements from './WorldElements'
@@ -46,21 +45,50 @@ function Scene() {
   const projectedWin = Math.floor(wager * bankedMultiplier);
   const isProfit = bankedMultiplier >= 1.0;
 
-  // Input Handling
-  const bind = useDrag(({ active, movement: [mx, my], event }) => {
-    if (active) {
-        if (joystickPointerIdRef.current == null && event?.pointerId != null) {
-          joystickPointerIdRef.current = event.pointerId
-        }
-        const dist = Math.sqrt(mx * mx + my * my);
-        const maxDist = 50;
-        if (dist > maxDist) setMobileSteer({ x: mx / dist, y: -my / dist });
-        else setMobileSteer({ x: mx / maxDist, y: -my / maxDist });
-    } else {
-        joystickPointerIdRef.current = null
-        setMobileSteer({ x: 0, y: 0 });
+  const JOY_MAX_DIST = 50
+
+  const updateSteerFromPointerEvent = (e) => {
+    const el = joystickElRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    let dx = (e.clientX ?? 0) - cx
+    let dy = (e.clientY ?? 0) - cy
+    const dist = Math.hypot(dx, dy)
+    const max = JOY_MAX_DIST
+    if (dist > max && dist > 0) {
+      dx = (dx / dist) * max
+      dy = (dy / dist) * max
     }
-  }, { pointer: { capture: true, keys: false } })
+    setMobileSteer({ x: dx / max, y: -(dy / max) })
+  }
+
+  const onJoystickPointerDown = (e) => {
+    if (joystickPointerIdRef.current != null) return
+    joystickPointerIdRef.current = e.pointerId
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
+    updateSteerFromPointerEvent(e)
+  }
+
+  const onJoystickPointerMove = (e) => {
+    if (joystickPointerIdRef.current !== e.pointerId) return
+    updateSteerFromPointerEvent(e)
+  }
+
+  const onJoystickPointerUp = (e) => {
+    if (joystickPointerIdRef.current !== e.pointerId) return
+    joystickPointerIdRef.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+    setMobileSteer({ x: 0, y: 0 })
+  }
+
+  const onJoystickPointerCancel = (e) => {
+    if (joystickPointerIdRef.current !== e.pointerId) return
+    joystickPointerIdRef.current = null
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+    setMobileSteer({ x: 0, y: 0 })
+  }
 
   const stopAllInputs = () => {
     const boostPid = boostPointerIdRef.current
@@ -105,30 +133,16 @@ function Scene() {
       if (document.hidden) stopAllInputs()
     }
 
-    window.addEventListener('pointerup', handlePointerEnd, { passive: true })
-    window.addEventListener('pointercancel', handlePointerEnd, { passive: true })
-    window.addEventListener('blur', stopAllInputs)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    const handleLostPointerCapture = (e) => {
-      const pointerId = e?.pointerId
-      if (pointerId == null) return
-      if (boostPointerIdRef.current === pointerId || joystickPointerIdRef.current === pointerId) {
-        stopAllInputs()
-      }
-	    }
-	    const joyEl = joystickElRef.current
-	    const boostEl = boostBtnRef.current
-	    joyEl?.addEventListener('lostpointercapture', handleLostPointerCapture)
-	    boostEl?.addEventListener('lostpointercapture', handleLostPointerCapture)
+	    window.addEventListener('pointerup', handlePointerEnd, { passive: true })
+	    window.addEventListener('pointercancel', handlePointerEnd, { passive: true })
+	    window.addEventListener('blur', stopAllInputs)
+	    document.addEventListener('visibilitychange', handleVisibilityChange)
 
 	    return () => {
 	      window.removeEventListener('pointerup', handlePointerEnd)
 	      window.removeEventListener('pointercancel', handlePointerEnd)
 	      window.removeEventListener('blur', stopAllInputs)
 	      document.removeEventListener('visibilitychange', handleVisibilityChange)
-	      joyEl?.removeEventListener('lostpointercapture', handleLostPointerCapture)
-	      boostEl?.removeEventListener('lostpointercapture', handleLostPointerCapture)
 	    }
 	  }, [setBoosting]);
 
@@ -158,7 +172,17 @@ function Scene() {
   }, [status, start, reset, crash, setBoosting, walletCtx])
 
 	  return (
-	    <div style={{ position: 'relative', width: '100vw', height: '100vh', touchAction: 'none' }}>
+	    <div
+        style={{
+          position: 'relative',
+          width: '100vw',
+          height: '100vh',
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
+        }}
+      >
       <Canvas
         camera={{ position: [0, 0, 8], fov: 68 }}
         style={{ background: 'linear-gradient(180deg, #1e3a8a 0%, #374151 50%, #111827 100%)' }}
@@ -216,7 +240,14 @@ function Scene() {
 	          }}>
 	            <div
                 ref={joystickElRef}
-                {...bind()}
+                onPointerDown={onJoystickPointerDown}
+                onPointerMove={onJoystickPointerMove}
+                onPointerUp={onJoystickPointerUp}
+                onPointerCancel={onJoystickPointerCancel}
+                onLostPointerCapture={() => {
+                  joystickPointerIdRef.current = null
+                  setMobileSteer({ x: 0, y: 0 })
+                }}
                 onContextMenu={(e) => e.preventDefault()}
                 style={{
 	              width: '100%', height: '100%', borderRadius: '50%',

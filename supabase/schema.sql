@@ -54,7 +54,7 @@ create table if not exists public.rounds (
   streaks_ms integer[] not null default '{}',
   started_at timestamptz not null default now(),
   ended_at timestamptz,
-  expires_at timestamptz not null default (now() + interval '10 minutes')
+  expires_at timestamptz not null default (now() + interval '6 hours')
 );
 
 -- At most one active round per wallet at a time.
@@ -224,7 +224,7 @@ $$;
 
 -- Start a round: debit play balance and open an active round.
 create or replace function public.round_start(p_wallet text, p_wager_raw bigint)
-returns table(round_id uuid, play_balance_raw bigint, expires_at timestamptz)
+returns table(round_id uuid, play_balance_raw bigint, expires_at timestamptz, wager_raw bigint)
 language plpgsql
 security definer
 as $$
@@ -232,6 +232,7 @@ declare
   v_play bigint;
   v_round_id uuid;
   v_expires timestamptz;
+  v_active record;
 begin
   if p_wager_raw <= 0 then
     raise exception 'wager must be > 0';
@@ -245,6 +246,27 @@ begin
 
   perform public.expire_stale_round(p_wallet);
 
+  -- Idempotency: if there's already an active round, return it (do NOT double-debit).
+  select r.id, r.wager_raw, r.expires_at
+    into v_active
+  from public.rounds as r
+  where r.wallet = p_wallet and r.status = 'active'
+  limit 1
+  for update;
+
+  if found then
+    select p.play_balance_raw into v_play
+      from public.players as p
+      where p.wallet = p_wallet
+      for update;
+
+    round_id := v_active.id;
+    play_balance_raw := v_play;
+    expires_at := v_active.expires_at;
+    wager_raw := v_active.wager_raw;
+    return next;
+  end if;
+
   select p.play_balance_raw into v_play
     from public.players as p
     where p.wallet = p_wallet
@@ -254,7 +276,7 @@ begin
     raise exception 'insufficient play balance';
   end if;
 
-  v_expires := now() + interval '10 minutes';
+  v_expires := now() + interval '6 hours';
 
   insert into public.rounds(wallet, status, wager_raw, expires_at)
     values (p_wallet, 'active', p_wager_raw, v_expires)
@@ -269,6 +291,7 @@ begin
   round_id := v_round_id;
   play_balance_raw := v_play;
   expires_at := v_expires;
+  wager_raw := p_wager_raw;
   return next;
 end;
 $$;
@@ -295,6 +318,7 @@ declare
   v_wager_ui bigint;
   v_payout_ui bigint;
   v_payout_raw bigint;
+  v_existing record;
 begin
   perform public.expire_stale_round(p_wallet);
 
@@ -304,7 +328,34 @@ begin
     for update;
 
   if v_wager_raw is null then
-    raise exception 'no active round found';
+    -- Idempotency: if this round already ended, return stored values instead of error.
+    select r.status, r.multiplier_milli, r.payout_raw
+      into v_existing
+    from public.rounds as r
+    where r.id = p_round_id and r.wallet = p_wallet
+    limit 1;
+
+    if not found then
+      raise exception 'no round found';
+    end if;
+
+    select p.play_balance_raw into v_play
+      from public.players as p
+      where p.wallet = p_wallet
+      for update;
+
+    if v_existing.status = 'settled' then
+      multiplier_milli := v_existing.multiplier_milli;
+      payout_raw := v_existing.payout_raw;
+      play_balance_raw := v_play;
+      return next;
+    end if;
+
+    -- expired (loss): payout already 0 by definition.
+    multiplier_milli := 0;
+    payout_raw := 0;
+    play_balance_raw := v_play;
+    return next;
   end if;
 
   if p_streaks_ms is null then

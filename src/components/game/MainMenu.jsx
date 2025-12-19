@@ -171,14 +171,26 @@ const MainMenu = () => {
                     style={styles.input}
                     disabled={depositDisabled}
                   />
-                  <button onClick={handleDeposit} style={{...styles.actionBtn, opacity: depositDisabled ? 0.5 : 1}} disabled={depositDisabled}>
+                  <button
+                    onPointerUp={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDeposit();
+                    }}
+                    style={{...styles.actionBtn, opacity: depositDisabled ? 0.5 : 1}}
+                    disabled={depositDisabled}
+                  >
                     DEPOSIT
                   </button>
                 </div>
 
                 {/* Withdraw Row */}
                 <button
-                  onClick={handleWithdraw}
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleWithdraw();
+                  }}
                   disabled={withdrawDisabled}
                   style={{
                     ...styles.actionBtn,
@@ -193,7 +205,11 @@ const MainMenu = () => {
 
                 {!!activeRoundId && (
                   <button
-                    onClick={handleClearRound}
+                    onPointerUp={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleClearRound();
+                    }}
                     style={{
                       ...styles.actionBtn,
                       width: '100%',
@@ -211,9 +227,27 @@ const MainMenu = () => {
               <div style={styles.wagerControl}>
                 <div style={styles.label}>SET WAGER ($WEAVE)</div>
                 <div style={styles.wagerRow}>
-                  <button onClick={() => adjustWager(-500)} style={styles.adjustBtn}>-</button>
+                  <button
+                    onPointerUp={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      adjustWager(-500);
+                    }}
+                    style={styles.adjustBtn}
+                  >
+                    -
+                  </button>
                   <div style={styles.wagerDisplay}>{wager.toLocaleString()}</div>
-                  <button onClick={() => adjustWager(500)} style={styles.adjustBtn}>+</button>
+                  <button
+                    onPointerUp={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      adjustWager(500);
+                    }}
+                    style={styles.adjustBtn}
+                  >
+                    +
+                  </button>
                 </div>
                 <div style={styles.sliderContainer}>
                   <input 
@@ -231,7 +265,11 @@ const MainMenu = () => {
               {/* --- START BUTTON --- */}
               <div style={styles.menuGroup}>
                 <button
-                  onClick={() => start(walletCtx)}
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    start(walletCtx);
+                  }}
                   onMouseEnter={() => setHoveredBtn('start')}
                   onMouseLeave={() => setHoveredBtn(null)}
                   disabled={playDisabled || balance < wager}
@@ -250,17 +288,35 @@ const MainMenu = () => {
 
               {/* Quick actions */}
               <div style={styles.quickActionsRow}>
-                <button onClick={() => setShowHistory(true)} style={styles.quickActionBtn}>
+                <button
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowHistory(true);
+                  }}
+                  style={styles.quickActionBtn}
+                >
                   HISTORY
                 </button>
-                <button onClick={() => setShowLeaderboard(true)} style={styles.quickActionBtn}>
+                <button
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowLeaderboard(true);
+                  }}
+                  style={styles.quickActionBtn}
+                >
                   LEADERBOARD
                 </button>
               </div>
 
               {/* Disconnect Link */}
               <button 
-                onClick={disconnect}
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  disconnect();
+                }}
                 style={{
                   background: 'none', border: 'none', color: '#444', 
                   fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.1em', marginTop: '2px'
@@ -273,7 +329,11 @@ const MainMenu = () => {
             /* --- DISCONNECTED STATE --- */
             <div style={styles.menuGroup}>
               <button
-                onClick={handleConnect}
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleConnect();
+                }}
                 onMouseEnter={() => setHoveredBtn('connect')}
                 onMouseLeave={() => setHoveredBtn(null)}
                 style={{
@@ -293,7 +353,14 @@ const MainMenu = () => {
             </div>
           )}
 
-          <button onClick={() => setShowHowToPlay(true)} style={styles.howToPlayLink}>
+          <button
+            onPointerUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowHowToPlay(true);
+            }}
+            style={styles.howToPlayLink}
+          >
             [ HOW TO PLAY ]
           </button>
 

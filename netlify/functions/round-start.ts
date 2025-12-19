@@ -3,7 +3,7 @@ import { withCors } from './lib/cors';
 import { requireSession } from './lib/session';
 import { supabaseRpc } from './lib/supabase';
 
-type Row = { round_id: string; play_balance_raw: number | string; expires_at: string };
+type Row = { round_id: string; play_balance_raw: number | string; expires_at: string; wager_raw?: number | string };
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return withCors({ statusCode: 200, body: '' });
@@ -23,6 +23,9 @@ export const handler: Handler = async (event) => {
     const row = rows?.[0];
     if (!row) throw new Error('round_start failed');
 
+    const wagerRawOut = row.wager_raw != null ? BigInt(String(row.wager_raw)) : BigInt(wagerRaw);
+    const wagerUiOut = Number(wagerRawOut / 1000000000n);
+
     return withCors({
       statusCode: 200,
       body: JSON.stringify({
@@ -30,10 +33,10 @@ export const handler: Handler = async (event) => {
         roundId: row.round_id,
         playBalanceRaw: String(row.play_balance_raw),
         expiresAt: row.expires_at,
+        wagerUi: wagerUiOut,
       }),
     });
   } catch (e: any) {
     return withCors({ statusCode: 400, body: JSON.stringify({ error: e?.message || 'round-start failed' }) });
   }
 };
-

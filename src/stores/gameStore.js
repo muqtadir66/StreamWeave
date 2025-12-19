@@ -94,6 +94,8 @@ export const useGameStore = create(
 	      sessionTokenWallet: null,
 	      authCooldownUntil: 0,
 	      withdrawInFlight: false,
+	      startInFlight: false,
+	      roundEndInFlight: false,
 	      activeRoundId: null,
 	      activeExpiresAt: null,
 	      streaksMs: [],
@@ -544,12 +546,14 @@ export const useGameStore = create(
 	      // --- GAMEPLAY LOGIC (Standard) ---
 	      start: async (walletCtx) => {
 	        const wallet = walletCtx;
+	        if (get().startInFlight) return;
 	        const { balance, wager, runId, needsFinalization, activeRoundId } = get();
 	        if (needsFinalization) return alert("Finalize the session first.");
 	        if (activeRoundId) return alert("A round is already active (possibly on another device).");
 	        if (balance < wager) return alert("INSUFFICIENT FUNDS. Please Deposit $WEAVE.");
 	        if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
 
+	        set({ startInFlight: true });
 	        try {
 	          let token = await get().ensureSession(wallet);
 
@@ -580,6 +584,7 @@ export const useGameStore = create(
 
 	          const playBalanceRaw = new BN(data.playBalanceRaw);
 	          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+	          const wagerUi = Number.isFinite(data.wagerUi) ? Number(data.wagerUi) : wager;
 
 	          set({
 	            status: 'running',
@@ -588,7 +593,7 @@ export const useGameStore = create(
 	            activeExpiresAt: data.expiresAt,
 	            balanceRaw: playBalanceRaw,
 	            balance: Number(uiBalanceStr),
-	            lastWager: wager,
+	            lastWager: wagerUi,
 	            payout: 0,
 	            bankedMultiplier: 0.0,
 	            streaksMs: [],
@@ -600,6 +605,8 @@ export const useGameStore = create(
 	          });
 	        } catch (e) {
 	          alert(e.message || String(e));
+	        } finally {
+	          set({ startInFlight: false });
 	        }
 	      },
 	      setBoosting: (active) => {
@@ -632,14 +639,16 @@ export const useGameStore = create(
         if (s.status !== 'running') return {}
         return { speed: s.isBoosting ? Math.min(s.maxSpeed, s.speed + s.maxSpeed * 0.5 * delta) : Math.max(22, s.speed - s.maxSpeed * 1.5 * delta) }
       }),
-	      crash: async () => {
-	        const { activeRoundId, streaksMs, sessionToken } = get();
-	        set({ status: 'crashed', isBoosting: false });
-	        if (!activeRoundId) return;
-	        if (!sessionToken) return alert("Session auth missing. Reconnect wallet.");
+		      crash: async () => {
+		        if (get().roundEndInFlight) return;
+		        const { activeRoundId, streaksMs, sessionToken } = get();
+		        set({ status: 'crashed', isBoosting: false });
+		        if (!activeRoundId) return;
+		        if (!sessionToken) return alert("Session auth missing. Reconnect wallet.");
+		        set({ roundEndInFlight: true });
 
-	        try {
-	          const res = await fetch(fnUrl('round-end'), {
+		        try {
+		          const res = await fetch(fnUrl('round-end'), {
 	            method: 'POST',
 	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
 	            body: JSON.stringify({ roundId: activeRoundId, streaksMs: streaksMs || [] }),
@@ -648,26 +657,35 @@ export const useGameStore = create(
 	            const err = await res.json().catch(() => ({}));
 	            throw new Error(err.error || 'round-end failed');
 	          }
-	          const data = await res.json();
-	          const playBalanceRaw = new BN(data.playBalanceRaw);
-	          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+		          const data = await res.json();
+		          const playBalanceRaw = new BN(data.playBalanceRaw);
+		          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
 
-	          set({
-	            activeRoundId: null,
-	            activeExpiresAt: null,
-	            streaksMs: [],
-	            bankedMultiplier: Number(data.multiplier) || 0,
-	            payout: Number(data.payoutUi) || 0,
-	            balanceRaw: playBalanceRaw,
-	            balance: Number(uiBalanceStr),
-	          });
+		          set({
+		            activeRoundId: null,
+		            activeExpiresAt: null,
+		            streaksMs: [],
+		            bankedMultiplier: Number(data.multiplier) || 0,
+		            payout: Number(data.payoutUi) || 0,
+		            balanceRaw: playBalanceRaw,
+		            balance: Number(uiBalanceStr),
+		          });
 
-	          await get().refreshSession();
-	        } catch (e) {
-	          console.error("Round settlement failed:", e);
-	          alert(`Round settlement failed: ${e.message || e}`);
-	        }
-	      },
+		          await get().refreshSession();
+		        } catch (e) {
+		          const msg = (e?.message || String(e));
+		          // round_end is idempotent now; if client double-fired, treat as already settled.
+		          if (msg.toLowerCase().includes('no active round found')) {
+		            set({ activeRoundId: null, activeExpiresAt: null, streaksMs: [] });
+		            try { await get().refreshSession(); } catch {}
+		            return;
+		          }
+		          console.error("Round settlement failed:", e);
+		          alert(`Round settlement failed: ${e.message || e}`);
+		        } finally {
+		          set({ roundEndInFlight: false });
+		        }
+		      },
       reset: () => set((s) => ({ status: 'idle' })),
       refill: () => alert("Please use the 'Deposit' button to add funds."), 
     }),
