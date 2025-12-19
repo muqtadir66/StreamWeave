@@ -38,12 +38,12 @@ const MainMenu = () => {
   // Sync Balance on Connect
   useEffect(() => {
     if (!connected || !walletCtx?.publicKey) return;
-    syncSession(walletCtx);
+    syncSession(walletCtx, { interactive: true });
 
     const interval = setInterval(() => {
       const st = useGameStore.getState().status;
       if (st === 'running') return;
-      syncSession(walletCtx);
+      syncSession(walletCtx, { interactive: false });
     }, 4000);
     return () => clearInterval(interval);
   }, [connected, publicKey?.toBase58(), syncSession]);
@@ -294,7 +294,7 @@ const MainMenu = () => {
           )}
 
           <button onClick={() => setShowHowToPlay(true)} style={styles.howToPlayLink}>
-            [ MANUAL ]
+            [ HOW TO PLAY ]
           </button>
 
           {/* Footer Info */}

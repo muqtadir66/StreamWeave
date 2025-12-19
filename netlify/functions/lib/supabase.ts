@@ -40,6 +40,22 @@ export const supabasePost = async <T>(pathAndQuery: string, body: unknown, extra
   return (text ? JSON.parse(text) : null) as T;
 };
 
+export const supabasePatch = async <T>(
+  pathAndQuery: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<T> => {
+  const url = `${supabaseBaseUrl()}/rest/v1/${pathAndQuery.replace(/^\//, '')}`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { ...supabaseHeaders(), ...(extraHeaders || {}) },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Supabase PATCH ${pathAndQuery} failed: ${res.status} ${text}`);
+  return (text ? JSON.parse(text) : null) as T;
+};
+
 export const supabaseDelete = async (pathAndQuery: string): Promise<void> => {
   const url = `${supabaseBaseUrl()}/rest/v1/${pathAndQuery.replace(/^\//, '')}`;
   const res = await fetch(url, { method: 'DELETE', headers: supabaseHeaders() });
@@ -47,4 +63,3 @@ export const supabaseDelete = async (pathAndQuery: string): Promise<void> => {
   if (!res.ok) throw new Error(`Supabase DELETE ${pathAndQuery} failed: ${res.status} ${text}`);
   void text;
 };
-

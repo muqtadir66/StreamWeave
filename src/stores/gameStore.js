@@ -20,6 +20,16 @@ const tokenStorageKey = (walletPk) => `streamweaveSessionToken:${walletPk}`;
 let authInFlightWallet = null;
 let authInFlightPromise = null;
 
+const isSessionAuthErrorMessage = (msg) => {
+  const s = (msg || '').toString().toLowerCase();
+  return (
+    s.includes('session expired') ||
+    s.includes('invalid session token') ||
+    s.includes('missing authorization') ||
+    s.includes('missing authorization bearer token')
+  );
+};
+
 // Convert UI amount (string/number) to raw BN without float rounding.
 const parseUiAmountToBN = (uiAmount) => {
   if (BN.isBN(uiAmount)) return uiAmount;
@@ -94,11 +104,19 @@ export const useGameStore = create(
       
       fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
       boostStreak: 0, currentTier: 0, isBoosting: false,
-      speed: 22, maxSpeed: 90, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
+      speed: 22, maxSpeed: 100, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
 
       setShipPos: (pos) => set({ shipPos: pos }),
       setShake: (v) => set({ shake: v }),
-      setWager: (amount) => set({ wager: amount }),
+	      setWager: (amount) => set({ wager: amount }),
+
+	      clearSessionToken: (walletPk) => {
+	        try { localStorage.removeItem(tokenStorageKey(walletPk)); } catch {}
+	        const { sessionTokenWallet } = get();
+	        if (sessionTokenWallet === walletPk) {
+	          set({ sessionToken: null, sessionTokenWallet: null, sessionOwner: null });
+	        }
+	      },
 
 	      // 0. AUTH (one-time per device; no per-round wallet popups)
 	      ensureSession: async (wallet) => {
@@ -184,7 +202,12 @@ export const useGameStore = create(
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'session-state failed');
+          const msg = err.error || 'session-state failed';
+          if (isSessionAuthErrorMessage(msg)) {
+            get().clearSessionToken(sessionOwner);
+            throw new Error('Session expired');
+          }
+          throw new Error(msg);
         }
 
         const data = await res.json();
@@ -219,10 +242,23 @@ export const useGameStore = create(
       },
 
       // 1. SYNC SESSION (authoritative balance from backend)
-      syncSession: async (wallet) => {
+      syncSession: async (wallet, opts = { interactive: false }) => {
         if (!wallet || !wallet.publicKey) return;
         try {
-          await get().ensureSession(wallet);
+          const walletPk = wallet.publicKey.toBase58();
+          const { sessionToken, sessionTokenWallet } = get();
+
+          // Load any cached token without prompting.
+          if (!sessionToken || sessionTokenWallet !== walletPk) {
+            const stored = localStorage.getItem(tokenStorageKey(walletPk));
+            if (stored) set({ sessionToken: stored, sessionTokenWallet: walletPk, sessionOwner: walletPk });
+          }
+
+          // If we still don't have a token, only prompt if interactive.
+          if (!get().sessionToken && opts?.interactive) {
+            await get().ensureSession(wallet);
+          }
+
           await get().refreshSession();
         } catch (e) {
           console.log("Sync Log:", e.message);
@@ -364,23 +400,37 @@ export const useGameStore = create(
 	            import.meta.env.VITE_FUNCTIONS_BASE_URL ||
 	            (import.meta.env.DEV ? "http://localhost:8888" : "");
 	          const API_URL = `${FUNCTIONS_BASE_URL}/.netlify/functions/settle-game`;
-	          const token = await get().ensureSession(wallet);
-	          
-	          const response = await fetch(API_URL, {
-	            method: 'POST',
-	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-	            body: JSON.stringify({
-	              userPubkey: anchorWallet.publicKey.toBase58(),
-	              requestedAmount: requestedRawAmount.toString(), // Send Raw String
-	            })
-	          });
+          let token = await get().ensureSession(wallet);
 
-          if (!response.ok) {
-             const err = await response.json();
-             throw new Error(err.error || "Server declined withdrawal");
+          const attempt = async (t) => {
+            const response = await fetch(API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+              body: JSON.stringify({
+                userPubkey: anchorWallet.publicKey.toBase58(),
+                requestedAmount: requestedRawAmount.toString(), // Send Raw String
+              }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.error || "Server declined withdrawal");
+            return payload;
+          };
+
+          let settlement;
+          try {
+            settlement = await attempt(token);
+          } catch (e) {
+            if (isSessionAuthErrorMessage(e?.message)) {
+              const walletPk = wallet.publicKey.toBase58();
+              get().clearSessionToken(walletPk);
+              token = await get().ensureSession(wallet);
+              settlement = await attempt(token);
+            } else {
+              throw e;
+            }
           }
 
-          const { signature, authorizedAmount, nonce, expiry, refereePubkey } = await response.json();
+          const { signature, authorizedAmount, nonce, expiry, refereePubkey } = settlement;
           console.log("✅ Received Server Settlement");
 
           const authorizedRawAmount = new BN(authorizedAmount);
@@ -501,17 +551,33 @@ export const useGameStore = create(
 	        if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
 
 	        try {
-	          const token = await get().ensureSession(wallet);
-	          const res = await fetch(fnUrl('round-start'), {
-	            method: 'POST',
-	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-	            body: JSON.stringify({ wagerUi: wager }),
-	          });
-	          if (!res.ok) {
-	            const err = await res.json().catch(() => ({}));
-	            throw new Error(err.error || 'round-start failed');
+	          let token = await get().ensureSession(wallet);
+
+	          const attempt = async (t) => {
+	            const res = await fetch(fnUrl('round-start'), {
+	              method: 'POST',
+	              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+	              body: JSON.stringify({ wagerUi: wager }),
+	            });
+	            const data = await res.json().catch(() => ({}));
+	            if (!res.ok) throw new Error(data.error || 'round-start failed');
+	            return data;
+	          };
+
+	          let data;
+	          try {
+	            data = await attempt(token);
+	          } catch (e) {
+	            if (isSessionAuthErrorMessage(e?.message)) {
+	              const walletPk = wallet.publicKey.toBase58();
+	              get().clearSessionToken(walletPk);
+	              token = await get().ensureSession(wallet);
+	              data = await attempt(token);
+	            } else {
+	              throw e;
+	            }
 	          }
-	          const data = await res.json();
+
 	          const playBalanceRaw = new BN(data.playBalanceRaw);
 	          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
 

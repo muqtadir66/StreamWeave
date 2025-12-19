@@ -69,7 +69,7 @@ export const handler: Handler = async (event) => {
     await supabaseDelete(`auth_challenges?wallet=eq.${encodeURIComponent(wallet)}`);
 
     const token = randomUUID() + randomUUID(); // opaque (not a JWT)
-    const sessionExpiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(); // 12h
+    const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30d
 
     await supabasePost(
       'sessions',
@@ -85,4 +85,3 @@ export const handler: Handler = async (event) => {
     return withCors({ statusCode: 401, body: JSON.stringify({ error: e?.message || 'Auth verify failed' }) });
   }
 };
-
