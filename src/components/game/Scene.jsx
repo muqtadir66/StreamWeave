@@ -9,7 +9,7 @@ import WorldElements from './WorldElements'
 import CameraRig from './CameraRig'
 import MainMenu from './MainMenu'
 import BoostStreakHUD from './BoostStreakHUD'
-import BackgroundMusic from './BackgroundMusic' // [NEW IMPORT]
+import BackgroundMusic from './BackgroundMusic'
 import { useGameStore } from '../../stores/gameStore'
 import { useWallet } from '@solana/wallet-adapter-react';
 
@@ -44,8 +44,8 @@ function Scene() {
   // Economy & Sound Stats
   const bankedMultiplier = useGameStore((s) => s.bankedMultiplier)
   const wager = useGameStore((s) => s.wager)
-  const soundEnabled = useGameStore((s) => s.soundEnabled) // [NEW]
-  const toggleSound = useGameStore((s) => s.toggleSound)   // [NEW]
+  const soundEnabled = useGameStore((s) => s.soundEnabled) 
+  const toggleSound = useGameStore((s) => s.toggleSound)   
   
   const projectedWin = Math.floor(wager * bankedMultiplier);
   const isProfit = bankedMultiplier >= 1.0;
@@ -171,7 +171,7 @@ function Scene() {
       if (e.code === 'Enter' && (status === 'idle' || status === 'crashed')) start(walletCtx)
       if (e.code === 'KeyR' && status === 'crashed') reset()
       if (e.code === 'Escape' && status === 'running') crash()
-      if (e.code === 'KeyM') toggleSound() // [NEW] Shortcut
+      if (e.code === 'KeyM') toggleSound() 
     }
     const onBoost = (e) => { if(e.code === 'Space') setBoosting(true); }
     const offBoost = (e) => { if(e.code === 'Space') setBoosting(false); }
@@ -209,6 +209,7 @@ function Scene() {
         <Lights />
         <WorldElements key={`world-${runId}`} />
         
+        {/* [MODIFIED] Render PlayerShip during 'collided' phase too */}
         {status === 'crashed' ? (
           <ShipExplosion position={shipPos} />
         ) : (
@@ -227,9 +228,8 @@ function Scene() {
         display: 'flex', justifyContent: 'space-between', padding: '15px 25px',
         background: 'linear-gradient(180deg, rgba(0, 10, 20, 0.9) 0%, transparent 100%)',
         borderBottom: '1px solid rgba(0, 246, 255, 0.2)',
-        pointerEvents: 'none' // Keep bar non-interactive except buttons
+        pointerEvents: 'none'
       }}>
-        {/* Left: Status & Multiplier & SOUND */}
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center', color: '#00f6ff', fontFamily: 'monospace', pointerEvents: 'auto' }}>
           <div style={{
             padding: '4px 12px', borderRadius: '15px',
@@ -239,12 +239,11 @@ function Scene() {
             {status === 'running' ? '● LIVE' : '● STOP'}
           </div>
           
-          {/* [MODIFIED] SOUND TOGGLE BUTTON */}
           <button 
             onPointerUp={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              e.currentTarget.blur(); // Remove focus immediately
+              e.currentTarget.blur(); 
               toggleSound();
             }}
             onKeyDown={(e) => e.preventDefault()}
@@ -267,7 +266,6 @@ function Scene() {
           </div>
         </div>
 
-        {/* Right: Banked Payout & Wager */}
         <div style={{ textAlign: 'right', fontFamily: 'monospace' }}>
           <div style={{ fontSize: '18px', color: isProfit ? '#00ff88' : '#fff' }}>
             BANK: {projectedWin.toLocaleString()}

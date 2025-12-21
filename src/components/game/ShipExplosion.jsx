@@ -1,6 +1,6 @@
-import React, { useRef, useMemo, useEffect } from 'react'
+import React, { useRef, useMemo } from 'react' // Removed useEffect
 import { useFrame } from '@react-three/fiber'
-import { useGameStore } from '../../stores/gameStore'
+// Removed useGameStore import since we don't need sound check here anymore
 import * as THREE from 'three'
 
 // Colors extracted from PlayerShip.jsx palette
@@ -8,17 +8,8 @@ const SHIP_COLORS = ['#c0c0c0', '#111827', '#ff7a00']
 
 export default function ShipExplosion({ position }) {
   const group = useRef()
-  const soundEnabled = useGameStore((s) => s.soundEnabled)
+  // Audio moved to WorldElements for better timing
   
-  // Play sound on mount if enabled
-  useEffect(() => {
-    if (soundEnabled) {
-        const audio = new Audio('/audio/crash.mp3');
-        audio.volume = 0.5; // Adjust volume as needed
-        audio.play().catch((e) => console.log("Crash sound failed:", e));
-    }
-  }, [soundEnabled]);
-
   // Create 50 pieces of debris for a denser explosion
   const particles = useMemo(() => {
     return new Array(50).fill().map(() => {

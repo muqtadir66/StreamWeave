@@ -23,8 +23,17 @@ export const SolanaProvider = ({ children }) => {
         <ConnectionProvider endpoint={endpoint}>
             <WalletProvider
                 wallets={wallets}
-                autoConnect={true}
-                onError={(err) => console.error('[WalletAdapter]', err)}
+                // Avoid auto-connecting MetaMask Standard Wallet because it can be flaky / duplicated
+                // (and can get "stuck" if it was the last-selected wallet in localStorage).
+                autoConnect={(adapter) => adapter?.name !== 'MetaMask'}
+                onError={(err, adapter) => {
+                    console.error('[WalletAdapter]', err, adapter);
+                    if (adapter?.name === 'MetaMask') {
+                        try {
+                            localStorage.removeItem('streamweaveWalletName');
+                        } catch {}
+                    }
+                }}
                 localStorageKey="streamweaveWalletName"
             >
                 <WalletModalProvider>

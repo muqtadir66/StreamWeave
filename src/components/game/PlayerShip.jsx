@@ -9,13 +9,24 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
   const engineGlowL = useRef()
   const engineGlowR = useRef()
   const [keys, setKeys] = useState({ left: false, right: false, up: false, down: false })
+  
   const setShipPos = useGameStore((s) => s.setShipPos)
   const status = useGameStore((s) => s.status)
   const isBoosting = useGameStore((s) => s.isBoosting)
-  const { camera, viewport } = useThree()
+  const bounceVelocity = useGameStore((s) => s.bounceVelocity)
+  
+  // Keep the hook to match original behavior exactly, even if unused in logic
+  const { camera, viewport } = useThree() 
 
   const velocity = useMemo(() => new THREE.Vector3(), [])
   const shipPos = useMemo(() => new THREE.Vector3(), [])
+  
+  // Random spin for the collision tumble
+  const tumbleSpin = useMemo(() => ({
+    x: (Math.random() - 0.5) * 15,
+    y: (Math.random() - 0.5) * 15,
+    z: (Math.random() - 0.5) * 15
+  }), []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -40,50 +51,79 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
 
   useFrame((state, delta) => {
     if (!shipRef.current) return
-    if (!active || status !== 'running') {
-        velocity.set(0,0,0);
-        return
+    
+    // --- CASE 1: Normal Gameplay ---
+    if (status === 'running') {
+        if (!active) {
+            velocity.set(0,0,0);
+            return
+        }
+
+        const acceleration = 120.0;
+        const damping = -4.0;
+        const accel = new THREE.Vector3(0,0,0);
+        
+        if (keys.left) accel.x -= 1;
+        if (keys.right) accel.x += 1;
+        if (keys.up) accel.y += 1;
+        if (keys.down) accel.y -= 1;
+        
+        accel.x += mobileSteer.x;
+        accel.y += mobileSteer.y;
+
+        if (accel.length() > 0) velocity.addScaledVector(accel.normalize(), acceleration * delta);
+        const dampingForce = velocity.clone().multiplyScalar(damping * delta)
+        velocity.add(dampingForce)
+        shipPos.addScaledVector(velocity, delta)
+
+        const boundX = 15 - 6; 
+        const boundY = 17.5 - 2; 
+        
+        shipPos.x = Math.max(-boundX, Math.min(boundX, shipPos.x));
+        shipPos.y = Math.max(-boundY, Math.min(boundY, shipPos.y));
+        
+        shipRef.current.position.copy(shipPos);
+
+        shipRef.current.rotation.z = -velocity.x * 0.05;
+        shipRef.current.rotation.x = velocity.y * 0.03;
+        shipRef.current.rotation.y = -velocity.x * 0.02;
+
+        // Engine Effects
+        const targetScale = isBoosting ? 3 : 1;
+        const targetIntensity = isBoosting ? 3.5 : 1.2;
+        [engineGlowL, engineGlowR].forEach(ref => {
+            if(ref.current) {
+                ref.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+                ref.current.material.emissiveIntensity = THREE.MathUtils.lerp(ref.current.material.emissiveIntensity, targetIntensity, 0.1);
+            }
+        });
+
+        setShipPos(shipPos)
     }
     
-    const acceleration = 120.0;
-    const damping = -4.0;
-    const accel = new THREE.Vector3(0,0,0);
+    // --- CASE 2: Collision Tumble ---
+    else if (status === 'collided') {
+        // Apply bounce velocity
+        shipPos.x += bounceVelocity.x * delta
+        shipPos.y += bounceVelocity.y * delta
+        shipPos.z += bounceVelocity.z * delta
+        
+        // Apply position
+        shipRef.current.position.copy(shipPos);
+        
+        // Apply violent rotation (tumble)
+        shipRef.current.rotation.x += tumbleSpin.x * delta
+        shipRef.current.rotation.y += tumbleSpin.y * delta
+        shipRef.current.rotation.z += tumbleSpin.z * delta
+
+        setShipPos(shipPos)
+    }
     
-    if (keys.left) accel.x -= 1;
-    if (keys.right) accel.x += 1;
-    if (keys.up) accel.y += 1;
-    if (keys.down) accel.y -= 1;
-    
-    accel.x += mobileSteer.x;
-    accel.y += mobileSteer.y;
-
-    if (accel.length() > 0) velocity.addScaledVector(accel.normalize(), acceleration * delta);
-    const dampingForce = velocity.clone().multiplyScalar(damping * delta)
-    velocity.add(dampingForce)
-    shipPos.addScaledVector(velocity, delta)
-
-    const boundX = 15 - 6; 
-    const boundY = 17.5 - 2; 
-    
-    shipPos.x = Math.max(-boundX, Math.min(boundX, shipPos.x));
-    shipPos.y = Math.max(-boundY, Math.min(boundY, shipPos.y));
-    
-    shipRef.current.position.copy(shipPos);
-
-    shipRef.current.rotation.z = -velocity.x * 0.05;
-    shipRef.current.rotation.x = velocity.y * 0.03;
-    shipRef.current.rotation.y = -velocity.x * 0.02;
-
-    const targetScale = isBoosting ? 3 : 1;
-    const targetIntensity = isBoosting ? 3.5 : 1.2;
-    [engineGlowL, engineGlowR].forEach(ref => {
-        if(ref.current) {
-            ref.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
-            ref.current.material.emissiveIntensity = THREE.MathUtils.lerp(ref.current.material.emissiveIntensity, targetIntensity, 0.1);
-        }
-    });
-
-    setShipPos(shipPos)
+    // --- CASE 3: Reset (Idle/Crashed) ---
+    // [CRITICAL FIX]: Ensure velocity is wiped when not playing, preventing drift on restart
+    else {
+        velocity.set(0, 0, 0);
+    }
   })
 
   return (

@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { useGameStore } from '../../stores/gameStore'
 import SpeedStreaks from './SpeedStreaks'
 
+// ... (Shaders remain unchanged)
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -62,9 +63,10 @@ function WorldElements() {
   const speed = useGameStore((s) => s.speed)
   const status = useGameStore((s) => s.status)
   const tickPacing = useGameStore((s) => s.tickPacing)
-  const crash = useGameStore((s) => s.crash)
+  const triggerCollision = useGameStore((s) => s.triggerCollision)
   const shipPos = useGameStore((s) => s.shipPos)
   const setShake = useGameStore((s) => s.setShake)
+  const soundEnabled = useGameStore((s) => s.soundEnabled) // [NEW] Needed for immediate audio
 
   const starCountNear = 350, starCountFar = 500, starDepth = 400;
   const nearStarsRef = useRef(), farStarsRef = useRef();
@@ -95,14 +97,15 @@ function WorldElements() {
     return arr
   }, [])
 
-useFrame((state, delta) => {
+  useFrame((state, delta) => {
     const isRunning = status === 'running';
-    const isAttractMode = status === 'idle' || status === 'crashed';
+    const isAttractMode = status === 'idle' || status === 'crashed' || status === 'collided';
 
     if (!isRunning && !isAttractMode) return;
 
     speedRef.current = isAttractMode ? 8 : speed; 
     
+    // Stop updating pacing if we are in collided state (freeze speed)
     if (isRunning) tickPacing(delta);
 
     if (nearStarsRef.current) { nearStarsRef.current.position.z += speedRef.current * 0.9 * delta; if(nearStarsRef.current.position.z > starDepth) nearStarsRef.current.position.z = -starDepth; }
@@ -139,8 +142,25 @@ useFrame((state, delta) => {
                         dz < (shipRadiusX + o.scale * 0.6);
             
             if (hit) {
-              setShake(2.5); // [CRITICAL]: High impact shake
-              crash();
+              setShake(2.5); // Impact shake
+              
+              // [NEW] Play Sound Immediately on Impact
+              if (soundEnabled) {
+                  const audio = new Audio('/audio/crash.mp3');
+                  audio.volume = 0.5;
+                  audio.play().catch(() => {});
+              }
+
+              // Calculate Bounce Vector
+              const impactVector = new THREE.Vector3(shipPos.x, shipPos.y, shipPos.z).sub(o.position).normalize();
+              const bounceForce = 25; 
+              const velocity = {
+                  x: impactVector.x * bounceForce,
+                  y: impactVector.y * bounceForce,
+                  z: 5 
+              };
+              
+              triggerCollision(velocity); 
               break;
             }
 

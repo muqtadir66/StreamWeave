@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { Program, AnchorProvider, BN, utils, web3 } from '@coral-xyz/anchor'
 import { createAssociatedTokenAccountInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { PROGRAM_ID, WEAVE_MINT, TREASURY_ADDRESS } from '../utils/constants'
+import { PROGRAM_ID, WEAVE_MINT } from '../utils/constants'
 import idl from '../utils/idl.json'
 
 const NETWORK = "https://api.devnet.solana.com"
@@ -79,119 +79,121 @@ const buildProgram = (connection, wallet) => {
 
 export const useGameStore = create(
   persist(
-	    (set, get) => ({
-	      status: 'idle',
-	      sessionOwner: null,
-	      sessionDirty: false,
-	      needsFinalization: false,
-	      escrowRaw: new BN(0),
-	      balanceRaw: new BN(0),
-	      balance: 0,
-	      sessionToken: null,
-	      sessionTokenWallet: null,
-	      authCooldownUntil: 0,
-	      withdrawInFlight: false,
-	      startInFlight: false,
-	      roundEndInFlight: false,
-	      activeRoundId: null,
-	      activeExpiresAt: null,
-	      streaksMs: [],
-	      wager: 1000, 
-	      lastWager: 0,
-	      payout: 0,
-	      bankedMultiplier: 0.0,
+    (set, get) => ({
+      status: 'idle',
+      sessionOwner: null,
+      sessionDirty: false,
+      needsFinalization: false,
+      escrowRaw: new BN(0),
+      balanceRaw: new BN(0),
+      balance: 0,
+      sessionToken: null,
+      sessionTokenWallet: null,
+      authCooldownUntil: 0,
+      withdrawInFlight: false,
+      startInFlight: false,
+      roundEndInFlight: false,
+      activeRoundId: null,
+      activeExpiresAt: null,
+      streaksMs: [],
+      wager: 1000, 
+      lastWager: 0,
+      payout: 0,
+      bankedMultiplier: 0.0,
       
-          fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
-          boostStreak: 0, currentTier: 0, isBoosting: false,
-          speed: 22, maxSpeed: 100, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
+      fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
+      boostStreak: 0, currentTier: 0, isBoosting: false,
+      speed: 22, maxSpeed: 100, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
+      
+      // --- Bounce/Collision State ---
+      bounceVelocity: { x: 0, y: 0, z: 0 }, 
+      
+      soundEnabled: true,
+      toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
 
-          // --- [NEW] Audio State ---
-          soundEnabled: true,
-          toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
+      setShipPos: (pos) => set({ shipPos: pos }),
+      setShake: (v) => set({ shake: v }),
+      setWager: (amount) => set({ wager: amount }),
 
-          setShipPos: (pos) => set({ shipPos: pos }),
-          setShake: (v) => set({ shake: v }),
-	      setWager: (amount) => set({ wager: amount }),
+      clearSessionToken: (walletPk) => {
+        try { localStorage.removeItem(tokenStorageKey(walletPk)); } catch {}
+        const { sessionTokenWallet } = get();
+        if (sessionTokenWallet === walletPk) {
+          set({ sessionToken: null, sessionTokenWallet: null, sessionOwner: null });
+        }
+      },
 
-	      clearSessionToken: (walletPk) => {
-	        try { localStorage.removeItem(tokenStorageKey(walletPk)); } catch {}
-	        const { sessionTokenWallet } = get();
-	        if (sessionTokenWallet === walletPk) {
-	          set({ sessionToken: null, sessionTokenWallet: null, sessionOwner: null });
-	        }
-	      },
+      ensureSession: async (wallet) => {
+        if (!wallet?.publicKey) throw new Error('Connect wallet');
+        const walletPk = wallet.publicKey.toBase58();
 
-	      ensureSession: async (wallet) => {
-	        if (!wallet?.publicKey) throw new Error('Connect wallet');
-	        const walletPk = wallet.publicKey.toBase58();
+        const { authCooldownUntil } = get();
+        if (authCooldownUntil && Date.now() < authCooldownUntil) {
+          throw new Error('Login pending/canceled; waiting before retry.');
+        }
 
-	        const { authCooldownUntil } = get();
-	        if (authCooldownUntil && Date.now() < authCooldownUntil) {
-	          throw new Error('Login pending/canceled; waiting before retry.');
-	        }
+        if (authInFlightPromise && authInFlightWallet === walletPk) return await authInFlightPromise;
 
-	        if (authInFlightPromise && authInFlightWallet === walletPk) return await authInFlightPromise;
+        const { sessionToken, sessionTokenWallet } = get();
+        if (sessionToken && sessionTokenWallet === walletPk) return sessionToken;
 
-	        const { sessionToken, sessionTokenWallet } = get();
-	        if (sessionToken && sessionTokenWallet === walletPk) return sessionToken;
+        const stored = localStorage.getItem(tokenStorageKey(walletPk));
+        if (stored) {
+          set({ sessionToken: stored, sessionTokenWallet: walletPk, sessionOwner: walletPk });
+          return stored;
+        }
 
-	        const stored = localStorage.getItem(tokenStorageKey(walletPk));
-	        if (stored) {
-	          set({ sessionToken: stored, sessionTokenWallet: walletPk, sessionOwner: walletPk });
-	          return stored;
-	        }
+        if (!wallet.signMessage) throw new Error('Wallet must support message signing to play');
 
-	        if (!wallet.signMessage) throw new Error('Wallet must support message signing to play');
+        authInFlightWallet = walletPk;
+        authInFlightPromise = (async () => {
+          try {
+            const nonceRes = await fetch(fnUrl('auth-nonce'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ wallet: walletPk }),
+            });
+            if (!nonceRes.ok) {
+              const err = await nonceRes.json().catch(() => ({}));
+              throw new Error(err.error || 'Auth nonce failed');
+            }
 
-	        authInFlightWallet = walletPk;
-	        authInFlightPromise = (async () => {
-	          try {
-	            const nonceRes = await fetch(fnUrl('auth-nonce'), {
-	              method: 'POST',
-	              headers: { 'Content-Type': 'application/json' },
-	              body: JSON.stringify({ wallet: walletPk }),
-	            });
-	            if (!nonceRes.ok) {
-	              const err = await nonceRes.json().catch(() => ({}));
-	              throw new Error(err.error || 'Auth nonce failed');
-	            }
+            const { message } = await nonceRes.json();
+            const signature = await wallet.signMessage(new TextEncoder().encode(message));
 
-	            const { message } = await nonceRes.json();
-	            const signature = await wallet.signMessage(new TextEncoder().encode(message));
+            const verifyRes = await fetch(fnUrl('auth-verify'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ wallet: walletPk, message, signature: Array.from(signature) }),
+            });
+            if (!verifyRes.ok) {
+              const err = await verifyRes.json().catch(() => ({}));
+              throw new Error(err.error || 'Auth verify failed');
+            }
 
-	            const verifyRes = await fetch(fnUrl('auth-verify'), {
-	              method: 'POST',
-	              headers: { 'Content-Type': 'application/json' },
-	              body: JSON.stringify({ wallet: walletPk, message, signature: Array.from(signature) }),
-	            });
-	            if (!verifyRes.ok) {
-	              const err = await verifyRes.json().catch(() => ({}));
-	              throw new Error(err.error || 'Auth verify failed');
-	            }
+            const verified = await verifyRes.json();
+            const token = verified.token;
+            if (!token) throw new Error('Auth verify returned no token');
 
-	            const verified = await verifyRes.json();
-	            const token = verified.token;
-	            if (!token) throw new Error('Auth verify returned no token');
+            localStorage.setItem(tokenStorageKey(walletPk), token);
+            set({ sessionToken: token, sessionTokenWallet: walletPk, sessionOwner: walletPk, authCooldownUntil: 0 });
+            return token;
+          } catch (e) {
+            const msg = (e?.message || String(e)).toLowerCase();
+            const likelyUserCancel =
+              msg.includes('reject') || msg.includes('declin') || msg.includes('cancel') || msg.includes('user');
+            if (likelyUserCancel) {
+              set({ authCooldownUntil: Date.now() + 30_000 });
+            }
+            throw e;
+          } finally {
+            authInFlightWallet = null;
+            authInFlightPromise = null;
+          }
+        })();
 
-	            localStorage.setItem(tokenStorageKey(walletPk), token);
-	            set({ sessionToken: token, sessionTokenWallet: walletPk, sessionOwner: walletPk, authCooldownUntil: 0 });
-	            return token;
-	          } catch (e) {
-	            const msg = (e?.message || String(e)).toLowerCase();
-	            const likelyUserCancel =
-	              msg.includes('reject') || msg.includes('declin') || msg.includes('cancel') || msg.includes('user');
-	            if (likelyUserCancel) {
-	              set({ authCooldownUntil: Date.now() + 30_000 });
-	            }
-	            throw e;
-	          } finally {
-	            authInFlightWallet = null;
-	            authInFlightPromise = null;
-	          }
-	        })();
-
-	        return await authInFlightPromise;
-	      },
+        return await authInFlightPromise;
+      },
 
       refreshSession: async () => {
         const { sessionToken, sessionOwner } = get();
@@ -264,15 +266,16 @@ export const useGameStore = create(
         }
       },
 
-	      depositFunds: async (walletCtx, amount) => {
-	        const wallet = walletCtx;
-	        try {
-	          if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
-	          if (get().needsFinalization) {
-	            return alert("Finalize the session first (sweeps escrowed losses to the house).");
-	          }
-	          
-	          const connection = new web3.Connection(NETWORK, "confirmed");
+      depositFunds: async (walletCtx, amount) => {
+        // ... (depositFunds implementation remains unchanged) ...
+        const wallet = walletCtx;
+        try {
+          if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
+          if (get().needsFinalization) {
+            return alert("Finalize the session first (sweeps escrowed losses to the house).");
+          }
+          
+          const connection = new web3.Connection(NETWORK, "confirmed");
           const { program, programId, anchorWallet } = buildProgram(connection, wallet);
           const mintPk = new web3.PublicKey(WEAVE_MINT);
 
@@ -347,7 +350,8 @@ export const useGameStore = create(
       },
 
       withdrawFunds: async (walletCtx) => {
-        const wallet = walletCtx;
+         // ... (withdrawFunds implementation remains unchanged) ...
+         const wallet = walletCtx;
         if (get().withdrawInFlight) return;
         set({ withdrawInFlight: true });
         try {
@@ -381,10 +385,10 @@ export const useGameStore = create(
             console.log(`[Withdraw] Finalizing session: sweeping ${vaultAmount.toString()} escrow units to the house.`);
           }
 
-	          const FUNCTIONS_BASE_URL =
-	            import.meta.env.VITE_FUNCTIONS_BASE_URL ||
-	            (import.meta.env.DEV ? "http://localhost:8888" : "");
-	          const API_URL = `${FUNCTIONS_BASE_URL}/.netlify/functions/settle-game`;
+          const FUNCTIONS_BASE_URL =
+            import.meta.env.VITE_FUNCTIONS_BASE_URL ||
+            (import.meta.env.DEV ? "http://localhost:8888" : "");
+          const API_URL = `${FUNCTIONS_BASE_URL}/.netlify/functions/settle-game`;
           let token = await get().ensureSession(wallet);
 
           const attempt = async (t) => {
@@ -522,89 +526,91 @@ export const useGameStore = create(
         }
       },
 
-	      start: async (walletCtx) => {
-	        const wallet = walletCtx;
-	        if (get().startInFlight) return;
-	        const { balance, wager, runId, needsFinalization, activeRoundId } = get();
-	        if (needsFinalization) return alert("Finalize the session first.");
-	        if (activeRoundId) return alert("A round is already active (possibly on another device).");
-	        if (balance < wager) return alert("INSUFFICIENT FUNDS. Please Deposit $WEAVE.");
-	        if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
+      start: async (walletCtx) => {
+         // ... (start implementation remains unchanged) ...
+         const wallet = walletCtx;
+        if (get().startInFlight) return;
+        const { balance, wager, runId, needsFinalization, activeRoundId } = get();
+        if (needsFinalization) return alert("Finalize the session first.");
+        if (activeRoundId) return alert("A round is already active (possibly on another device).");
+        if (balance < wager) return alert("INSUFFICIENT FUNDS. Please Deposit $WEAVE.");
+        if (!wallet || !wallet.publicKey) return alert("Connect wallet.");
 
-	        set({ startInFlight: true });
-	        try {
-	          let token = await get().ensureSession(wallet);
+        set({ startInFlight: true });
+        try {
+          let token = await get().ensureSession(wallet);
 
-	          const attempt = async (t) => {
-	            const res = await fetch(fnUrl('round-start'), {
-	              method: 'POST',
-	              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-	              body: JSON.stringify({ wagerUi: wager }),
-	            });
-	            const data = await res.json().catch(() => ({}));
-	            if (!res.ok) throw new Error(data.error || 'round-start failed');
-	            return data;
-	          };
+          const attempt = async (t) => {
+            const res = await fetch(fnUrl('round-start'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+              body: JSON.stringify({ wagerUi: wager }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'round-start failed');
+            return data;
+          };
 
-	          let data;
-	          try {
-	            data = await attempt(token);
-	          } catch (e) {
-	            if (isSessionAuthErrorMessage(e?.message)) {
-	              const walletPk = wallet.publicKey.toBase58();
-	              get().clearSessionToken(walletPk);
-	              token = await get().ensureSession(wallet);
-	              data = await attempt(token);
-	            } else {
-	              throw e;
-	            }
-	          }
+          let data;
+          try {
+            data = await attempt(token);
+          } catch (e) {
+            if (isSessionAuthErrorMessage(e?.message)) {
+              const walletPk = wallet.publicKey.toBase58();
+              get().clearSessionToken(walletPk);
+              token = await get().ensureSession(wallet);
+              data = await attempt(token);
+            } else {
+              throw e;
+            }
+          }
 
-	          const playBalanceRaw = new BN(data.playBalanceRaw);
-	          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
-	          const wagerUi = Number.isFinite(data.wagerUi) ? Number(data.wagerUi) : wager;
+          const playBalanceRaw = new BN(data.playBalanceRaw);
+          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+          const wagerUi = Number.isFinite(data.wagerUi) ? Number(data.wagerUi) : wager;
 
-	          set({
-	            status: 'running',
-	            sessionDirty: true,
-	            activeRoundId: data.roundId,
-	            activeExpiresAt: data.expiresAt,
-	            balanceRaw: playBalanceRaw,
-	            balance: Number(uiBalanceStr),
-	            lastWager: wagerUi,
-	            payout: 0,
-	            bankedMultiplier: 0.0,
-	            streaksMs: [],
-	            boostStreak: 0,
-	            currentTier: 0,
-	            fuel: 100,
-	            speed: 22,
-	            runId: runId + 1,
-	          });
-	        } catch (e) {
-	          alert(e.message || String(e));
-	        } finally {
-	          set({ startInFlight: false });
-	        }
-	      },
-	      setBoosting: (active) => {
-	        const { status, boostStreak, bankedMultiplier, streaksMs } = get()
-	        if (status !== 'running') return
-	        if (active) {
-	          set({ isBoosting: true })
-	        } else {
-	          const durationMs = Math.floor(boostStreak * 1000);
-	          let addedMult = 0.0;
-	          if (boostStreak >= 50) addedMult = 20.0; else if (boostStreak >= 40) addedMult = 8.0; else if (boostStreak >= 30) addedMult = 3.5; else if (boostStreak >= 20) addedMult = 1.5; else if (boostStreak >= 10) addedMult = 0.5;
-	          set({
-	            isBoosting: false,
-	            boostStreak: 0,
-	            currentTier: 0,
-	            bankedMultiplier: bankedMultiplier + addedMult,
-	            streaksMs: durationMs > 0 ? [ ...(streaksMs || []), durationMs ] : (streaksMs || []),
-	          })
-	        }
-	      },
+          set({
+            status: 'running',
+            sessionDirty: true,
+            activeRoundId: data.roundId,
+            activeExpiresAt: data.expiresAt,
+            balanceRaw: playBalanceRaw,
+            balance: Number(uiBalanceStr),
+            lastWager: wagerUi,
+            payout: 0,
+            bankedMultiplier: 0.0,
+            streaksMs: [],
+            boostStreak: 0,
+            currentTier: 0,
+            fuel: 100,
+            speed: 22,
+            runId: runId + 1,
+            bounceVelocity: { x: 0, y: 0, z: 0 }, // Reset bounce
+          });
+        } catch (e) {
+          alert(e.message || String(e));
+        } finally {
+          set({ startInFlight: false });
+        }
+      },
+      setBoosting: (active) => {
+        const { status, boostStreak, bankedMultiplier, streaksMs } = get()
+        if (status !== 'running') return
+        if (active) {
+          set({ isBoosting: true })
+        } else {
+          const durationMs = Math.floor(boostStreak * 1000);
+          let addedMult = 0.0;
+          if (boostStreak >= 50) addedMult = 20.0; else if (boostStreak >= 40) addedMult = 8.0; else if (boostStreak >= 30) addedMult = 3.5; else if (boostStreak >= 20) addedMult = 1.5; else if (boostStreak >= 10) addedMult = 0.5;
+          set({
+            isBoosting: false,
+            boostStreak: 0,
+            currentTier: 0,
+            bankedMultiplier: bankedMultiplier + addedMult,
+            streaksMs: durationMs > 0 ? [ ...(streaksMs || []), durationMs ] : (streaksMs || []),
+          })
+        }
+      },
       tickGameLoop: (delta) => set((s) => {
         if (s.status !== 'running') return {}
         let newFuel = s.isBoosting ? Math.min(s.maxFuel, s.fuel + s.fuelRegen * delta) : s.fuel - s.fuelDrain * delta
@@ -617,52 +623,68 @@ export const useGameStore = create(
         if (s.status !== 'running') return {}
         return { speed: s.isBoosting ? Math.min(s.maxSpeed, s.speed + s.maxSpeed * 0.5 * delta) : Math.max(22, s.speed - s.maxSpeed * 1.5 * delta) }
       }),
-		      crash: async () => {
-		        if (get().roundEndInFlight) return;
-		        const { activeRoundId, streaksMs, sessionToken } = get();
-		        set({ status: 'crashed', isBoosting: false });
-		        if (!activeRoundId) return;
-		        if (!sessionToken) return alert("Session auth missing. Reconnect wallet.");
-		        set({ roundEndInFlight: true });
 
-		        try {
-		          const res = await fetch(fnUrl('round-end'), {
-	            method: 'POST',
-	            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-	            body: JSON.stringify({ roundId: activeRoundId, streaksMs: streaksMs || [] }),
-	          });
-	          if (!res.ok) {
-	            const err = await res.json().catch(() => ({}));
-	            throw new Error(err.error || 'round-end failed');
-	          }
-		          const data = await res.json();
-		          const playBalanceRaw = new BN(data.playBalanceRaw);
-		          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+      // [NEW] Trigger Collision (Bounce) Phase
+      triggerCollision: (velocity) => {
+        if (get().status === 'collided' || get().status === 'crashed') return;
+        set({ status: 'collided', bounceVelocity: velocity, isBoosting: false });
+        
+        // Wait 0.8s for the bounce animation, then explode
+        setTimeout(() => {
+             // Only crash if we are still in collided state (game hasn't reset)
+            if (get().status === 'collided') {
+                get().crash();
+            }
+        }, 800);
+      },
 
-		          set({
-		            activeRoundId: null,
-		            activeExpiresAt: null,
-		            streaksMs: [],
-		            bankedMultiplier: Number(data.multiplier) || 0,
-		            payout: Number(data.payoutUi) || 0,
-		            balanceRaw: playBalanceRaw,
-		            balance: Number(uiBalanceStr),
-		          });
+      crash: async () => {
+         // ... (crash implementation remains unchanged) ...
+         if (get().roundEndInFlight) return;
+        const { activeRoundId, streaksMs, sessionToken } = get();
+        set({ status: 'crashed', isBoosting: false });
+        if (!activeRoundId) return;
+        if (!sessionToken) return alert("Session auth missing. Reconnect wallet.");
+        set({ roundEndInFlight: true });
 
-		          await get().refreshSession();
-		        } catch (e) {
-		          const msg = (e?.message || String(e));
-		          if (msg.toLowerCase().includes('no active round found')) {
-		            set({ activeRoundId: null, activeExpiresAt: null, streaksMs: [] });
-		            try { await get().refreshSession(); } catch {}
-		            return;
-		          }
-		          console.error("Round settlement failed:", e);
-		          alert(`Round settlement failed: ${e.message || e}`);
-		        } finally {
-		          set({ roundEndInFlight: false });
-		        }
-		      },
+        try {
+          const res = await fetch(fnUrl('round-end'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+            body: JSON.stringify({ roundId: activeRoundId, streaksMs: streaksMs || [] }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'round-end failed');
+          }
+          const data = await res.json();
+          const playBalanceRaw = new BN(data.playBalanceRaw);
+          const uiBalanceStr = formatRawToUiString(playBalanceRaw, 6);
+
+          set({
+            activeRoundId: null,
+            activeExpiresAt: null,
+            streaksMs: [],
+            bankedMultiplier: Number(data.multiplier) || 0,
+            payout: Number(data.payoutUi) || 0,
+            balanceRaw: playBalanceRaw,
+            balance: Number(uiBalanceStr),
+          });
+
+          await get().refreshSession();
+        } catch (e) {
+          const msg = (e?.message || String(e));
+          if (msg.toLowerCase().includes('no active round found')) {
+            set({ activeRoundId: null, activeExpiresAt: null, streaksMs: [] });
+            try { await get().refreshSession(); } catch {}
+            return;
+          }
+          console.error("Round settlement failed:", e);
+          alert(`Round settlement failed: ${e.message || e}`);
+        } finally {
+          set({ roundEndInFlight: false });
+        }
+      },
       reset: () => set((s) => ({ status: 'idle' })),
       refill: () => alert("Please use the 'Deposit' button to add funds."), 
     }),
@@ -679,7 +701,7 @@ export const useGameStore = create(
         sessionToken: state.sessionToken,
         sessionTokenWallet: state.sessionTokenWallet,
         authCooldownUntil: state.authCooldownUntil,
-        soundEnabled: state.soundEnabled, // [NEW] Persist sound setting
+        soundEnabled: state.soundEnabled,
       }),
       merge: (persistedState, currentState) => {
         const next = { ...currentState, ...(persistedState || {}) };
