@@ -17,14 +17,16 @@ const MainMenu = () => {
   const needsFinalization = useGameStore((s) => s.needsFinalization);
   const activeRoundId = useGameStore((s) => s.activeRoundId);
   
-  // --- NEW ACTIONS ---
   const syncSession = useGameStore((s) => s.syncSession);
   const depositFunds = useGameStore((s) => s.depositFunds);
   const withdrawFunds = useGameStore((s) => s.withdrawFunds);
   const abortActiveRound = useGameStore((s) => s.abortActiveRound);
   const withdrawInFlight = useGameStore((s) => s.withdrawInFlight);
   
-  // --- REAL SOLANA HOOKS ---
+  // [NEW] Audio Store Hooks
+  const soundEnabled = useGameStore((s) => s.soundEnabled);
+  const toggleSound = useGameStore((s) => s.toggleSound);
+
   const walletCtx = useWallet();
   const { connected, publicKey, disconnect } = walletCtx;
   const { setVisible } = useWalletModal();
@@ -33,9 +35,10 @@ const MainMenu = () => {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [depositAmount, setDepositAmount] = useState(1000); // Default deposit amount
+  const [depositAmount, setDepositAmount] = useState(1000);
 
-  // Sync Balance on Connect
+  const [menuVisible, setMenuVisible] = useState(false);
+
   useEffect(() => {
     if (!connected || !walletCtx?.publicKey) return;
     syncSession(walletCtx, { interactive: true });
@@ -48,7 +51,19 @@ const MainMenu = () => {
     return () => clearInterval(interval);
   }, [connected, publicKey?.toBase58(), syncSession]);
 
-  if (status !== 'idle' && status !== 'crashed') return null;
+  useEffect(() => {
+    if (status === 'crashed') {
+      setMenuVisible(false);
+      const timer = setTimeout(() => setMenuVisible(true), 1500); 
+      return () => clearTimeout(timer);
+    } else if (status === 'idle') {
+      setMenuVisible(true);
+    } else {
+      setMenuVisible(false);
+    }
+  }, [status]);
+
+  if ((status !== 'idle' && status !== 'crashed') || !menuVisible) return null;
 
   const isCrashed = status === 'crashed';
   const netChange = lastPayout - lastWager; 
@@ -96,8 +111,13 @@ const MainMenu = () => {
       <div style={{
         ...styles.contentWrapper, 
         justifyContent: connected ? 'flex-start' : 'center',
-        filter: showHowToPlay ? 'blur(5px)' : 'none'
+        filter: showHowToPlay ? 'blur(5px)' : 'none',
+        animation: 'fadeIn 0.5s ease-out',
+        opacity: 1
       }}>
+        <style>
+            {`@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`}
+        </style>
         
         {/* --- HEADER --- */}
         <div style={styles.header}>
@@ -106,6 +126,21 @@ const MainMenu = () => {
           </div>
           <h1 style={styles.title}>STREAM<span style={{ color: '#00f6ff' }}>WEAVE</span></h1>
           <div style={styles.subtitle}>WEAVE REWARD PROTOCOL // SOLANA</div>
+          
+          {/* [NEW] Main Menu Sound Toggle */}
+          <button 
+            onClick={toggleSound}
+            style={{
+                marginTop: '10px',
+                background: 'rgba(0, 246, 255, 0.05)', 
+                border: '1px solid rgba(0, 246, 255, 0.3)',
+                color: soundEnabled ? '#00ff88' : '#888',
+                cursor: 'pointer', padding: '6px 14px', borderRadius: '4px',
+                fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.1em'
+            }}
+          >
+            AUDIO: {soundEnabled ? 'ENABLED' : 'DISABLED'}
+          </button>
         </div>
 
         {/* CONTROLS CONTAINER */}

@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, forwardRef } from 'react'
 import * as THREE from 'three'
-import { useFrame } from '@react-three/fiber' // Import the useFrame hook
-import { EffectComposer, Bloom, Vignette, SMAA, DepthOfField } from '@react-three/postprocessing'
+import { useFrame } from '@react-three/fiber'
+import { EffectComposer, Bloom, Vignette, SMAA, DepthOfField, ChromaticAberration } from '@react-three/postprocessing' // [NEW IMPORT]
 import { useGameStore } from '../../stores/gameStore'
 import { BlendFunction } from 'postprocessing'
 
@@ -48,9 +48,9 @@ const LensDistortion = forwardRef(({ distortion, principalPoint }, ref) => {
 
 function SceneEffects() {
   const isBoosting = useGameStore((s) => s.isBoosting)
+  const status = useGameStore((s) => s.status) // [NEW: Needed for crash check]
   const lensDistortionRef = useRef();
 
-  // The critical fix: Move the side-effect into the useFrame hook
   useFrame(() => {
     if (lensDistortionRef.current) {
       lensDistortionRef.current.setDistortion(isBoosting ? -0.15 : 0, 0);
@@ -67,6 +67,7 @@ function SceneEffects() {
         mipmapBlur 
         radius={0.7} 
       />
+
       <LensDistortion ref={lensDistortionRef} />
       <DepthOfField 
         focusDistance={0}

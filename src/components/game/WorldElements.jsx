@@ -5,7 +5,6 @@ import * as THREE from 'three'
 import { useGameStore } from '../../stores/gameStore'
 import SpeedStreaks from './SpeedStreaks'
 
-// --- ATMOSPHERIC GLOW COMPONENT ---
 const vertexShader = `
   varying vec2 vUv;
   void main() {
@@ -45,8 +44,6 @@ function AtmosphericGlow() {
   );
 }
 
-
-// --- MAIN WORLD ELEMENTS COMPONENT ---
 const createAsteroidGeometry = () => {
     const geo = new THREE.IcosahedronGeometry(1.0, 0); 
     const vertices = geo.attributes.position.array;
@@ -134,16 +131,15 @@ useFrame((state, delta) => {
         if (isRunning) {
             const dx = Math.abs(shipPos.x - o.position.x), dy = Math.abs(shipPos.y - o.position.y), dz = Math.abs(shipPos.z - o.position.z);
             
-            // Collision radii (Updated to match flattened ship profile)
             const shipRadiusX = 1.2; 
-            const shipRadiusY = 0.4; // 0.8 / 2
+            const shipRadiusY = 0.4;
             
             const hit = dx < (shipRadiusX + o.scale * 0.6) && 
                         dy < (shipRadiusY + o.scale * 0.6) && 
                         dz < (shipRadiusX + o.scale * 0.6);
             
             if (hit) {
-              setShake(0.9);
+              setShake(2.5); // [CRITICAL]: High impact shake
               crash();
               break;
             }

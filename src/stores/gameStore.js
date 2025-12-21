@@ -9,7 +9,7 @@ const NETWORK = "https://api.devnet.solana.com"
 const PROGRAM_ID_STR = typeof PROGRAM_ID === 'string'
   ? PROGRAM_ID
   : (idl?.address || idl?.metadata?.address || '').toString()
-const DECIMALS = 9; // Standard Solana Token Decimals
+const DECIMALS = 9; 
 const SCALE = new BN(10).pow(new BN(DECIMALS));
 
 const getFunctionsBaseUrl = () =>
@@ -30,7 +30,6 @@ const isSessionAuthErrorMessage = (msg) => {
   );
 };
 
-// Convert UI amount (string/number) to raw BN without float rounding.
 const parseUiAmountToBN = (uiAmount) => {
   if (BN.isBN(uiAmount)) return uiAmount;
   const str = (uiAmount ?? '').toString().trim();
@@ -42,7 +41,6 @@ const parseUiAmountToBN = (uiAmount) => {
   return whole.mul(SCALE).add(frac);
 };
 
-// Convert raw BN to a UI string, trimming zeros and limiting precision.
 const formatRawToUiString = (rawAmount, maxFractionDigits = 6) => {
   const bn = BN.isBN(rawAmount) ? rawAmount : new BN(rawAmount.toString());
   const neg = bn.isNeg();
@@ -75,7 +73,6 @@ const buildProgram = (connection, wallet) => {
   if (!PROGRAM_ID_STR || typeof PROGRAM_ID_STR !== 'string') throw new Error("PROGRAM_ID is missing");
   const programId = new web3.PublicKey(PROGRAM_ID_STR);
   const provider = new AnchorProvider(connection, anchorWallet, AnchorProvider.defaultOptions());
-  // Pass programId explicitly to avoid relying on idl.address if bundler mangles it
   const program = new Program(idl, programId, provider);
   return { program, programId, anchorWallet };
 };
@@ -99,17 +96,21 @@ export const useGameStore = create(
 	      activeRoundId: null,
 	      activeExpiresAt: null,
 	      streaksMs: [],
-	      wager: 1000, // This is now in UI UNITS (e.g., 1000 WEAVE)
+	      wager: 1000, 
 	      lastWager: 0,
 	      payout: 0,
 	      bankedMultiplier: 0.0,
       
-      fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
-      boostStreak: 0, currentTier: 0, isBoosting: false,
-      speed: 22, maxSpeed: 100, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
+          fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
+          boostStreak: 0, currentTier: 0, isBoosting: false,
+          speed: 22, maxSpeed: 100, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
 
-      setShipPos: (pos) => set({ shipPos: pos }),
-      setShake: (v) => set({ shake: v }),
+          // --- [NEW] Audio State ---
+          soundEnabled: true,
+          toggleSound: () => set((s) => ({ soundEnabled: !s.soundEnabled })),
+
+          setShipPos: (pos) => set({ shipPos: pos }),
+          setShake: (v) => set({ shake: v }),
 	      setWager: (amount) => set({ wager: amount }),
 
 	      clearSessionToken: (walletPk) => {
@@ -120,7 +121,6 @@ export const useGameStore = create(
 	        }
 	      },
 
-	      // 0. AUTH (one-time per device; no per-round wallet popups)
 	      ensureSession: async (wallet) => {
 	        if (!wallet?.publicKey) throw new Error('Connect wallet');
 	        const walletPk = wallet.publicKey.toBase58();
@@ -243,20 +243,17 @@ export const useGameStore = create(
         await get().refreshSession();
       },
 
-      // 1. SYNC SESSION (authoritative balance from backend)
       syncSession: async (wallet, opts = { interactive: false }) => {
         if (!wallet || !wallet.publicKey) return;
         try {
           const walletPk = wallet.publicKey.toBase58();
           const { sessionToken, sessionTokenWallet } = get();
 
-          // Load any cached token without prompting.
           if (!sessionToken || sessionTokenWallet !== walletPk) {
             const stored = localStorage.getItem(tokenStorageKey(walletPk));
             if (stored) set({ sessionToken: stored, sessionTokenWallet: walletPk, sessionOwner: walletPk });
           }
 
-          // If we still don't have a token, only prompt if interactive.
           if (!get().sessionToken && opts?.interactive) {
             await get().ensureSession(wallet);
           }
@@ -267,7 +264,6 @@ export const useGameStore = create(
         }
       },
 
-      // 2. DEPOSIT FUNDS (Fixed Math)
 	      depositFunds: async (walletCtx, amount) => {
 	        const wallet = walletCtx;
 	        try {
@@ -288,7 +284,6 @@ export const useGameStore = create(
           const playerTokenAccount = await getAssociatedTokenAddress(mintPk, anchorWallet.publicKey);
           const playerPdaTokenAccount = await getAssociatedTokenAddress(mintPk, playerStatePda, true);
 
-          // Create ATAs if needed
           const createAtaIxs = [];
           if (!(await connection.getAccountInfo(playerTokenAccount))) {
              createAtaIxs.push(createAssociatedTokenAccountInstruction(
@@ -301,7 +296,6 @@ export const useGameStore = create(
              ));
           }
 
-          // Convert UI amount to raw BN precisely
           const rawAmount = parseUiAmountToBN(amount);
           console.log(`Depositing ${amount} WEAVE (${rawAmount.toString()} units)...`);
 
@@ -318,7 +312,6 @@ export const useGameStore = create(
             .preInstructions(createAtaIxs)
             .transaction();
 
-          // Patch instruction metas (The workaround from previous agent)
           const ix = tx.instructions[tx.instructions.length - 1];
           ix.keys = ix.keys.map((k) => {
             const pk = k.pubkey.toBase58();
@@ -338,7 +331,6 @@ export const useGameStore = create(
           
           console.log("Deposit TX:", sig);
           
-          // Optimistic Update (raw + ui)
           set((s) => {
             const nextRaw = (s.balanceRaw ?? new BN(0)).add(rawAmount);
             const nextUiStr = formatRawToUiString(nextRaw, 6);
@@ -354,7 +346,6 @@ export const useGameStore = create(
         }
       },
 
-      // 3. WITHDRAW FUNDS (Backend Integrated)
       withdrawFunds: async (walletCtx) => {
         const wallet = walletCtx;
         if (get().withdrawInFlight) return;
@@ -366,17 +357,12 @@ export const useGameStore = create(
           const { program, programId, anchorWallet } = buildProgram(connection, wallet);
           const { balance, balanceRaw } = get();
 
-          // 1. Convert current session UI balance to raw precisely.
-          // `balanceRaw` is treated as the session raw balance (kept in sync with gameplay updates).
           const requestedRawAmount = balanceRaw && BN.isBN(balanceRaw)
             ? balanceRaw
             : parseUiAmountToBN(balance);
           const requestedUi = formatRawToUiString(requestedRawAmount, 6);
           console.log(`Withdrawing ${requestedUi} WEAVE (${requestedRawAmount.toString()} units)...`);
 
-          // If the player is at 0 locally, they may still have escrowed funds on-chain
-          // (because losses are only swept to treasury during settlement). In that case,
-          // we allow a "withdraw 0" which finalizes the session and sweeps the remainder to the house.
           if (requestedRawAmount.eq(new BN(0))) {
             const [playerStatePda] = web3.PublicKey.findProgramAddressSync(
               [utils.bytes.utf8.encode("player_state"), anchorWallet.publicKey.toBuffer()],
@@ -395,9 +381,6 @@ export const useGameStore = create(
             console.log(`[Withdraw] Finalizing session: sweeping ${vaultAmount.toString()} escrow units to the house.`);
           }
 
-          // 2. FETCH SIGNATURE FROM BACKEND
-          // Local dev: run `netlify dev` (default `http://localhost:8888`) so `/.netlify/functions/*` works.
-          // Prod: keep it relative so Netlify serves the function.
 	          const FUNCTIONS_BASE_URL =
 	            import.meta.env.VITE_FUNCTIONS_BASE_URL ||
 	            (import.meta.env.DEV ? "http://localhost:8888" : "");
@@ -410,7 +393,7 @@ export const useGameStore = create(
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
               body: JSON.stringify({
                 userPubkey: anchorWallet.publicKey.toBase58(),
-                requestedAmount: requestedRawAmount.toString(), // Send Raw String
+                requestedAmount: requestedRawAmount.toString(), 
               }),
             });
             const payload = await response.json().catch(() => ({}));
@@ -439,7 +422,6 @@ export const useGameStore = create(
           const nonceBn = new BN(nonce);
           const expiryBn = new BN(expiry);
 
-          // 3. Build ed25519 verify instruction
           const userBytes = anchorWallet.publicKey.toBytes();
           const toU64LE = (value) => {
             let x = BigInt(value);
@@ -461,7 +443,6 @@ export const useGameStore = create(
             signature: Uint8Array.from(signature),
           });
 
-          // 4. EXECUTE ON-CHAIN (withdrawV2)
           const mintPk = new web3.PublicKey(WEAVE_MINT);
 
           const [configPda] = web3.PublicKey.findProgramAddressSync(
@@ -486,7 +467,6 @@ export const useGameStore = create(
           const playerPdaTokenAccount = await getAssociatedTokenAddress(mintPk, playerStatePda, true);
           const treasuryTokenAccount = await getAssociatedTokenAddress(mintPk, treasuryPda, true);
 
-          // Check for ATA creation (User might have deleted their wallet?)
           const createAtaIxs = [];
           if (!(await connection.getAccountInfo(playerTokenAccount))) {
              createAtaIxs.push(createAssociatedTokenAccountInstruction(
@@ -514,7 +494,6 @@ export const useGameStore = create(
             .preInstructions(createAtaIxs)
             .transaction();
 
-          // Must be immediately before the program instruction
           tx.instructions.splice(tx.instructions.length - 1, 0, ed25519Ix);
 
           const { blockhash } = await connection.getLatestBlockhash();
@@ -543,7 +522,6 @@ export const useGameStore = create(
         }
       },
 
-	      // --- GAMEPLAY LOGIC (Standard) ---
 	      start: async (walletCtx) => {
 	        const wallet = walletCtx;
 	        if (get().startInFlight) return;
@@ -674,7 +652,6 @@ export const useGameStore = create(
 		          await get().refreshSession();
 		        } catch (e) {
 		          const msg = (e?.message || String(e));
-		          // round_end is idempotent now; if client double-fired, treat as already settled.
 		          if (msg.toLowerCase().includes('no active round found')) {
 		            set({ activeRoundId: null, activeExpiresAt: null, streaksMs: [] });
 		            try { await get().refreshSession(); } catch {}
@@ -702,10 +679,10 @@ export const useGameStore = create(
         sessionToken: state.sessionToken,
         sessionTokenWallet: state.sessionTokenWallet,
         authCooldownUntil: state.authCooldownUntil,
+        soundEnabled: state.soundEnabled, // [NEW] Persist sound setting
       }),
       merge: (persistedState, currentState) => {
         const next = { ...currentState, ...(persistedState || {}) };
-        // Rehydrate BN fields serialized by bn.js as hex strings.
         if (typeof next.balanceRaw === 'string') next.balanceRaw = new BN(next.balanceRaw, 16);
         if (typeof next.escrowRaw === 'string') next.escrowRaw = new BN(next.escrowRaw, 16);
         return next;
