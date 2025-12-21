@@ -32,7 +32,6 @@ function Scene() {
   const boostPointerIdRef = useRef(null)
   const joystickElRef = useRef(null)
   const boostBtnRef = useRef(null)
-  const isIOSRef = useRef(false)
   const walletCtx = useWallet();
   const setBoosting = useGameStore((s) => s.setBoosting);
   const status = useGameStore((s) => s.status)
@@ -53,8 +52,6 @@ function Scene() {
 
   const JOY_MAX_DIST = 50
   const JOY_DEADZONE_PX = 4
-  const STALE_TOUCH_MS = 250
-  const lastJoyMoveRef = useRef(0)
 
   const updateSteerFromPointerEvent = (e) => {
     const origin = joystickOriginRef.current
@@ -74,7 +71,6 @@ function Scene() {
       dy = (dy / dist) * max
     }
     setMobileSteer({ x: dx / max, y: -(dy / max) })
-    lastJoyMoveRef.current = performance.now()
   }
 
   const onJoystickPointerDown = (e) => {
@@ -106,40 +102,6 @@ function Scene() {
     setMobileSteer({ x: 0, y: 0 })
   }
 
-  const onJoystickTouchStart = (e) => {
-    if (!isIOSRef.current) return
-    if (joystickPointerIdRef.current != null) return
-    const t = e.changedTouches?.[0]
-    if (!t) return
-    e.preventDefault()
-    joystickPointerIdRef.current = t.identifier
-    joystickOriginRef.current = { x: t.clientX ?? 0, y: t.clientY ?? 0 }
-    lastJoyMoveRef.current = performance.now()
-    updateSteerFromPointerEvent(t)
-  }
-
-  const onJoystickTouchMove = (e) => {
-    if (!isIOSRef.current) return
-    const id = joystickPointerIdRef.current
-    if (id == null) return
-    const t = Array.from(e.changedTouches || []).find((touch) => touch.identifier === id)
-    if (!t) return
-    e.preventDefault()
-    updateSteerFromPointerEvent(t)
-  }
-
-  const onJoystickTouchEnd = (e) => {
-    if (!isIOSRef.current) return
-    const id = joystickPointerIdRef.current
-    if (id == null) return
-    const ended = Array.from(e.changedTouches || []).some((touch) => touch.identifier === id)
-    if (!ended) return
-    e.preventDefault()
-    joystickPointerIdRef.current = null
-    joystickOriginRef.current = null
-    setMobileSteer({ x: 0, y: 0 })
-  }
-
   const stopAllInputs = () => {
     const boostPid = boostPointerIdRef.current
     const joyPid = joystickPointerIdRef.current
@@ -154,15 +116,11 @@ function Scene() {
     boostPointerIdRef.current = null
     joystickPointerIdRef.current = null
     joystickOriginRef.current = null
-    lastJoyMoveRef.current = 0
     setBoosting(false)
     setMobileSteer({ x: 0, y: 0 })
   }
 
   useEffect(() => {
-    const ua = navigator?.userAgent || ''
-    isIOSRef.current = /iPad|iPhone|iPod/.test(ua) || (/Mac/.test(ua) && 'ontouchend' in document)
-
     const handlePointerEnd = (e) => {
       const pointerId = e?.pointerId
       if (pointerId == null) return
@@ -185,32 +143,18 @@ function Scene() {
       }
     }
 
-    const handleTouchWatchdog = () => {
-      if (!isIOSRef.current) return
-      const id = joystickPointerIdRef.current
-      if (id == null) return
-      const lastMove = lastJoyMoveRef.current
-      if (lastMove && performance.now() - lastMove > STALE_TOUCH_MS) {
-        joystickPointerIdRef.current = null
-        joystickOriginRef.current = null
-        setMobileSteer({ x: 0, y: 0 })
-      }
-    }
-
     const handleVisibilityChange = () => {
       if (document.hidden) stopAllInputs()
     }
 
     window.addEventListener('pointerup', handlePointerEnd, { passive: true })
     window.addEventListener('pointercancel', handlePointerEnd, { passive: true })
-    const watchdog = window.setInterval(handleTouchWatchdog, 150)
     window.addEventListener('blur', stopAllInputs)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.removeEventListener('pointerup', handlePointerEnd)
       window.removeEventListener('pointercancel', handlePointerEnd)
-      window.clearInterval(watchdog)
       window.removeEventListener('blur', stopAllInputs)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
@@ -346,10 +290,6 @@ function Scene() {
                 onPointerMove={onJoystickPointerMove}
                 onPointerUp={onJoystickPointerUp}
                 onPointerCancel={onJoystickPointerCancel}
-                onTouchStart={onJoystickTouchStart}
-                onTouchMove={onJoystickTouchMove}
-                onTouchEnd={onJoystickTouchEnd}
-                onTouchCancel={onJoystickTouchEnd}
                 onLostPointerCapture={() => {
                   joystickPointerIdRef.current = null
                   joystickOriginRef.current = null

@@ -103,7 +103,7 @@ export const useGameStore = create(
       
       fuel: 100, maxFuel: 100, fuelDrain: 8, fuelRegen: 15,
       boostStreak: 0, currentTier: 0, isBoosting: false,
-      speed: 22, maxSpeed: 100, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
+      speed: 22, maxSpeed: 110, shipPos: { x: 0, y: 0, z: 0 }, shake: 0, runId: 0,
       
       // --- Bounce/Collision State ---
       bounceVelocity: { x: 0, y: 0, z: 0 }, 

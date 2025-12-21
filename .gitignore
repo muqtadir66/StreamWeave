@@ -16,3 +16,4 @@ node.zip
 # Secrets (never commit)
 .env
 referee.json
+.env.local

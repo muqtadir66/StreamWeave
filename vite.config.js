@@ -26,4 +26,7 @@ export default defineConfig({
     ],
     dedupe: ['@solana/web3.js', '@coral-xyz/anchor'],
   },
+  server: {
+    allowedHosts: ['theda-sagittate-tripp.ngrok-free.dev'],
+  },
 })
