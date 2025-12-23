@@ -27,6 +27,9 @@ function GameLoop() {
 
 function Scene() {
   const [mobileSteer, setMobileSteer] = useState({ x: 0, y: 0 })
+  const mobileSteerRef = useRef({ x: 0, y: 0 })
+  const steerUiRafRef = useRef(null)
+  const [isIOS, setIsIOS] = useState(false)
   const joystickPointerIdRef = useRef(null)
   const joystickOriginRef = useRef(null) 
   const boostPointerIdRef = useRef(null)
@@ -53,6 +56,25 @@ function Scene() {
   const JOY_MAX_DIST = 50
   const JOY_DEADZONE_PX = 4
 
+  const setSteer = (next) => {
+    mobileSteerRef.current = next
+
+    // iOS/Phantom WebView: avoid driving gameplay via React re-renders.
+    // Throttle UI knob updates to rAF; physics reads from the ref.
+    if (isIOS) {
+      if (steerUiRafRef.current == null) {
+        steerUiRafRef.current = requestAnimationFrame(() => {
+          steerUiRafRef.current = null
+          setMobileSteer(mobileSteerRef.current)
+        })
+      }
+      return
+    }
+
+    // Non-iOS: keep existing behavior (state updates on move).
+    setMobileSteer(next)
+  }
+
   const updateSteerFromPointerEvent = (e) => {
     const origin = joystickOriginRef.current
     if (!origin) return
@@ -62,7 +84,7 @@ function Scene() {
     const max = JOY_MAX_DIST
 
     if (dist <= JOY_DEADZONE_PX) {
-      setMobileSteer({ x: 0, y: 0 })
+      setSteer({ x: 0, y: 0 })
       return
     }
 
@@ -70,14 +92,13 @@ function Scene() {
       dx = (dx / dist) * max
       dy = (dy / dist) * max
     }
-    setMobileSteer({ x: dx / max, y: -(dy / max) })
+    setSteer({ x: dx / max, y: -(dy / max) })
   }
 
   const onJoystickPointerDown = (e) => {
     if (joystickPointerIdRef.current != null) return
     joystickPointerIdRef.current = e.pointerId
     joystickOriginRef.current = { x: e.clientX ?? 0, y: e.clientY ?? 0 }
-    try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
     updateSteerFromPointerEvent(e)
   }
 
@@ -90,37 +111,34 @@ function Scene() {
     if (joystickPointerIdRef.current !== e.pointerId) return
     joystickPointerIdRef.current = null
     joystickOriginRef.current = null
-    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
-    setMobileSteer({ x: 0, y: 0 })
+    setSteer({ x: 0, y: 0 })
   }
 
   const onJoystickPointerCancel = (e) => {
     if (joystickPointerIdRef.current !== e.pointerId) return
     joystickPointerIdRef.current = null
     joystickOriginRef.current = null
-    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
-    setMobileSteer({ x: 0, y: 0 })
+    setSteer({ x: 0, y: 0 })
   }
 
   const stopAllInputs = () => {
     const boostPid = boostPointerIdRef.current
-    const joyPid = joystickPointerIdRef.current
 
     if (boostPid != null && boostBtnRef.current) {
       try { boostBtnRef.current.releasePointerCapture(boostPid) } catch {}
-    }
-    if (joyPid != null && joystickElRef.current) {
-      try { joystickElRef.current.releasePointerCapture(joyPid) } catch {}
     }
 
     boostPointerIdRef.current = null
     joystickPointerIdRef.current = null
     joystickOriginRef.current = null
     setBoosting(false)
-    setMobileSteer({ x: 0, y: 0 })
+    setSteer({ x: 0, y: 0 })
   }
 
   useEffect(() => {
+    const ua = globalThis?.navigator?.userAgent || ''
+    setIsIOS(/iPad|iPhone|iPod/.test(ua) || (/Mac/.test(ua) && 'ontouchend' in document))
+
     const handlePointerEnd = (e) => {
       const pointerId = e?.pointerId
       if (pointerId == null) return
@@ -136,11 +154,15 @@ function Scene() {
       if (joystickPointerIdRef.current === pointerId) {
         joystickPointerIdRef.current = null
         joystickOriginRef.current = null
-        if (joystickElRef.current) {
-          try { joystickElRef.current.releasePointerCapture(pointerId) } catch {}
-        }
-        setMobileSteer({ x: 0, y: 0 })
+        setSteer({ x: 0, y: 0 })
       }
+    }
+
+    // Global move tracking for the joystick pointer. This avoids relying on element pointer capture,
+    // which can be flaky on iOS (especially during multi-touch with boost).
+    const handlePointerMove = (e) => {
+      if (joystickPointerIdRef.current !== e.pointerId) return
+      updateSteerFromPointerEvent(e)
     }
 
     const handleVisibilityChange = () => {
@@ -149,14 +171,20 @@ function Scene() {
 
     window.addEventListener('pointerup', handlePointerEnd, { passive: true })
     window.addEventListener('pointercancel', handlePointerEnd, { passive: true })
+    window.addEventListener('pointermove', handlePointerMove, { passive: true, capture: true })
     window.addEventListener('blur', stopAllInputs)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.removeEventListener('pointerup', handlePointerEnd)
       window.removeEventListener('pointercancel', handlePointerEnd)
+      window.removeEventListener('pointermove', handlePointerMove, { capture: true })
       window.removeEventListener('blur', stopAllInputs)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (steerUiRafRef.current != null) {
+        cancelAnimationFrame(steerUiRafRef.current)
+        steerUiRafRef.current = null
+      }
     }
   }, [setBoosting]);
 
@@ -213,7 +241,12 @@ function Scene() {
         {status === 'crashed' ? (
           <ShipExplosion position={shipPos} />
         ) : (
-          <PlayerShip key={`ship-${runId}`} active={status === 'running'} mobileSteer={mobileSteer} />
+          <PlayerShip
+            key={`ship-${runId}`}
+            active={status === 'running'}
+            mobileSteer={mobileSteer}
+            mobileSteerRef={isIOS ? mobileSteerRef : undefined}
+          />
         )}
 
         <CameraRig enabled={true} />
@@ -278,28 +311,25 @@ function Scene() {
 
       <MainMenu />
       
-      {/* Controls */}
-      <div style={{ display: status === 'running' ? 'block' : 'none' }}>
-          <div style={{
-            position: 'absolute', bottom: '120px', left: 'calc(15vw - 75px)',
-            width: '150px', height: '150px', zIndex: 10, pointerEvents: 'auto'
-          }}>
-            <div
-              ref={joystickElRef}
-                onPointerDown={onJoystickPointerDown}
-                onPointerMove={onJoystickPointerMove}
-                onPointerUp={onJoystickPointerUp}
-                onPointerCancel={onJoystickPointerCancel}
-                onLostPointerCapture={() => {
-                  joystickPointerIdRef.current = null
-                  joystickOriginRef.current = null
-                  setMobileSteer({ x: 0, y: 0 })
-                }}
-                onContextMenu={(e) => e.preventDefault()}
-                style={{
-		              width: '100%', height: '100%', borderRadius: '50%',
-		              background: 'radial-gradient(circle, rgba(0, 246, 255, 0.2), transparent)',
-		              border: '2px solid rgba(0, 246, 255, 0.4)', position: 'relative',
+	      {/* Controls */}
+	      <div style={{ display: status === 'running' ? 'block' : 'none' }}>
+	          <div style={{
+	            position: 'absolute',
+              bottom: 'calc(env(safe-area-inset-bottom) + 110px)',
+              left: 'calc(env(safe-area-inset-left) + 24px)',
+	            width: '150px', height: '150px', zIndex: 10, pointerEvents: 'auto'
+	          }}>
+	            <div
+	              ref={joystickElRef}
+	                onPointerDown={onJoystickPointerDown}
+	                onPointerMove={onJoystickPointerMove}
+	                onPointerUp={onJoystickPointerUp}
+	                onPointerCancel={onJoystickPointerCancel}
+	                onContextMenu={(e) => e.preventDefault()}
+	                style={{
+			              width: '100%', height: '100%', borderRadius: '50%',
+			              background: 'radial-gradient(circle, rgba(0, 246, 255, 0.2), transparent)',
+			              border: '2px solid rgba(0, 246, 255, 0.4)', position: 'relative',
                   touchAction: 'none',
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
@@ -314,41 +344,40 @@ function Scene() {
                 transform: `translate(-50%, -50%) translate(${mobileSteer.x * 40}px, ${-mobileSteer.y * 40}px)`
               }} />
             </div>
-          </div>
+		          </div>
 
-          <div style={{
-            position: 'absolute', bottom: '120px', right: '20px', zIndex: 10, pointerEvents: 'auto'
-          }}>
-            <button
-              ref={boostBtnRef}
-              onContextMenu={(e) => e.preventDefault()}
-              onPointerDown={(e) => {
-                boostPointerIdRef.current = e.pointerId
-                try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
-                setBoosting(true)
-              }}
-              onPointerUp={(e) => {
-                if (boostPointerIdRef.current === e.pointerId) boostPointerIdRef.current = null
-                try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
-                setBoosting(false)
-              }}
-              onPointerCancel={(e) => {
-                if (boostPointerIdRef.current === e.pointerId) boostPointerIdRef.current = null
-                try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
-                setBoosting(false)
-              }}
-              onLostPointerCapture={() => {
-                boostPointerIdRef.current = null
-                setBoosting(false)
-              }}
-              onPointerLeave={() => {
-                boostPointerIdRef.current = null
-                setBoosting(false)
-              }}
-              style={{
-                width: '100px', height: '100px', borderRadius: '50%',
-                border: '2px solid #ff4444', background: 'rgba(255, 68, 68, 0.1)',
-                color: '#ff4444', fontWeight: 'bold', fontFamily: 'monospace',
+		          <div style={{
+		            position: 'absolute',
+                bottom: 'calc(env(safe-area-inset-bottom) + 110px)',
+                right: 'calc(env(safe-area-inset-right) + 24px)',
+                zIndex: 10,
+                pointerEvents: 'auto',
+		          }}>
+	            <button
+	              ref={boostBtnRef}
+	              onContextMenu={(e) => e.preventDefault()}
+	              onPointerDown={(e) => {
+	                // Avoid pointer capture here; iOS multi-touch + capture can cause joystick
+	                // to stop receiving pointer events while boost is held.
+	                boostPointerIdRef.current = e.pointerId
+	                setBoosting(true)
+	              }}
+	              onPointerUp={(e) => {
+	                if (boostPointerIdRef.current === e.pointerId) {
+	                  boostPointerIdRef.current = null
+	                  setBoosting(false)
+	                }
+	              }}
+	              onPointerCancel={(e) => {
+	                if (boostPointerIdRef.current === e.pointerId) {
+	                  boostPointerIdRef.current = null
+	                  setBoosting(false)
+	                }
+	              }}
+	              style={{
+	                width: '100px', height: '100px', borderRadius: '50%',
+	                border: '2px solid #ff4444', background: 'rgba(255, 68, 68, 0.1)',
+	                color: '#ff4444', fontWeight: 'bold', fontFamily: 'monospace',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 touchAction: 'none',
                 userSelect: 'none',

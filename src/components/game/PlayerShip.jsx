@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useGameStore } from '../../stores/gameStore'
 import * as THREE from 'three';
 
-function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
+function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 }, mobileSteerRef }) {
   const shipRef = useRef()
   const engineGlowL = useRef()
   const engineGlowR = useRef()
@@ -68,8 +68,9 @@ function PlayerShip({ active = true, mobileSteer = { x: 0, y: 0 } }) {
         if (keys.up) accel.y += 1;
         if (keys.down) accel.y -= 1;
         
-        accel.x += mobileSteer.x;
-        accel.y += mobileSteer.y;
+        const steer = mobileSteerRef?.current || mobileSteer
+        accel.x += steer.x;
+        accel.y += steer.y;
 
         if (accel.length() > 0) velocity.addScaledVector(accel.normalize(), acceleration * delta);
         const dampingForce = velocity.clone().multiplyScalar(damping * delta)

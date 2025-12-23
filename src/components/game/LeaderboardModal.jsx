@@ -40,11 +40,31 @@ const LeaderboardModal = ({ open, onClose }) => {
   if (!open) return null;
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.card} onClick={(e) => e.stopPropagation()}>
+    <div
+      style={styles.overlay}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+    >
+      <div
+        style={styles.card}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      >
         <div style={styles.header}>
           <div style={styles.title}>TOP SINGLE-ROUND WINS</div>
-          <button style={styles.close} onClick={onClose}>
+          <button
+            style={styles.close}
+            onPointerUp={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.currentTarget.blur();
+              onClose();
+            }}
+          >
             ✕
           </button>
         </div>
@@ -129,6 +149,11 @@ const styles = {
     height: '34px',
     cursor: 'pointer',
     fontSize: '14px',
+    padding: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 1,
   },
   body: {
     padding: '14px',
@@ -169,4 +194,3 @@ const styles = {
 };
 
 export default LeaderboardModal;
-
