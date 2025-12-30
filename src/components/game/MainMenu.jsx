@@ -405,7 +405,7 @@ const MainMenu = () => {
              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', textAlign: 'center', lineHeight: '1.6' }}>
                HOLD BOOST TO EARN • RELEASE TO BANK<br/>
                <span style={{color: '#ff4444'}}>FUEL DRAINS WHEN IDLE</span> • <span style={{color: '#00f6ff'}}>REGENS WHEN BOOSTING</span><br/>
-               10s = 0.5x | 20s = 1.5x | 30s = 3.5x | 40s = 8.0x
+               10s = 0.5x | 20s = 1.5x | 30s = 3.5x | 40s = 8.0x | 50s = 20x
              </div>
            </div>
           )}

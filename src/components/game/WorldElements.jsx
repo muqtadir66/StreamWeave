@@ -1,9 +1,10 @@
 import React from 'react'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useGameStore } from '../../stores/gameStore'
 import SpeedStreaks from './SpeedStreaks'
+import { playCrashSfx, preloadCrashSfx } from '../../utils/sfx'
 
 // ... (Shaders remain unchanged)
 const vertexShader = `
@@ -67,6 +68,12 @@ function WorldElements() {
   const shipPos = useGameStore((s) => s.shipPos)
   const setShake = useGameStore((s) => s.setShake)
   const soundEnabled = useGameStore((s) => s.soundEnabled) // [NEW] Needed for immediate audio
+
+  // Preload crash SFX early to avoid iOS WebView "first play" latency/misses.
+  useEffect(() => {
+    if (!soundEnabled) return;
+    preloadCrashSfx({ volume: 0.5 });
+  }, [soundEnabled]);
 
   const starCountNear = 350, starCountFar = 500, starDepth = 400;
   const nearStarsRef = useRef(), farStarsRef = useRef();
@@ -146,9 +153,7 @@ function WorldElements() {
               
               // [NEW] Play Sound Immediately on Impact
               if (soundEnabled) {
-                  const audio = new Audio('/audio/crash.mp3');
-                  audio.volume = 0.5;
-                  audio.play().catch(() => {});
+                  playCrashSfx({ volume: 0.5 });
               }
 
               // Calculate Bounce Vector
