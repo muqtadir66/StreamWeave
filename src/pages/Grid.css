@@ -1,0 +1,231 @@
+.weave {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(1200px 900px at 50% 20%, rgba(0, 246, 255, 0.12), rgba(0, 0, 0, 0.92) 65%);
+  overflow: hidden;
+}
+
+.weave__ticker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.55);
+  border-bottom: 1px solid rgba(0, 246, 255, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.weave__tickerInner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  white-space: nowrap;
+  padding-left: 30px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: rgba(255, 255, 255, 0.72);
+  animation: weaveTicker 22s linear infinite;
+}
+
+.weave__tickerInner span {
+  flex: none;
+}
+
+@keyframes weaveTicker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.weave__hudTop {
+  position: absolute;
+  top: 46px;
+  left: 16px;
+  right: 16px;
+  z-index: 6;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.weave__hudBtn {
+  pointer-events: auto;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+}
+
+.weave__hudWallet {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(8, 12, 20, 0.45);
+  border: 1px solid rgba(0, 246, 255, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.weave__hudWalletLabel {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.weave__hudWalletValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.weave__hudWalletValue--muted {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.weave__stage {
+  position: absolute;
+  inset: 38px 0 0 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  height: calc(100% - 38px);
+}
+
+@media (min-width: 980px) {
+  .weave__stage {
+    grid-template-columns: 1fr 360px;
+  }
+}
+
+.weave__canvasWrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.weave-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+}
+
+.weave-canvas:active {
+  cursor: grabbing;
+}
+
+.weave__coords {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(0, 246, 255, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.weave__coordsLabel {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.weave__coordsValue {
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: rgba(0, 246, 255, 0.88);
+}
+
+.weave__inspector {
+  position: relative;
+  height: 100%;
+  padding: 18px 18px 22px;
+  background: rgba(8, 12, 20, 0.62);
+  border-left: 1px solid rgba(0, 246, 255, 0.16);
+  backdrop-filter: blur(14px);
+  overflow: auto;
+}
+
+.weave__panelTitle {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 16px;
+}
+
+.weave__kv {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.weave__k {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.weave__v {
+  font-size: 13px;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.weave__v--accent {
+  color: rgba(0, 255, 255, 0.9);
+}
+
+.weave__gridLine {
+  height: 1px;
+  margin: 14px 0;
+  background: linear-gradient(90deg, rgba(0, 246, 255, 0.0), rgba(0, 246, 255, 0.22), rgba(0, 246, 255, 0.0));
+}
+
+.weave__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.weave__takeoverBtn {
+  width: 100%;
+  border-color: rgba(0, 255, 255, 0.55);
+  color: rgba(0, 255, 255, 0.9);
+  background: rgba(0, 255, 255, 0.06);
+}
+
+.weave__secondaryBtn {
+  width: 100%;
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.weave__fineprint {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.52);
+}
+

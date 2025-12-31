@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../../stores/gameStore';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useNavigate } from 'react-router-dom';
 import HistoryModal from './HistoryModal';
 import LeaderboardModal from './LeaderboardModal';
 
 const MainMenu = () => {
+  const navigate = useNavigate();
   const status = useGameStore((s) => s.status);
   const start = useGameStore((s) => s.start);
   const balance = useGameStore((s) => s.balance);
@@ -140,6 +142,25 @@ const MainMenu = () => {
             }}
           >
             AUDIO: {soundEnabled ? 'ENABLED' : 'DISABLED'}
+          </button>
+
+          <button
+            onClick={() => navigate('/')}
+            style={{
+              marginTop: '10px',
+              background: 'rgba(0, 0, 0, 0.35)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              color: '#fff',
+              cursor: 'pointer',
+              padding: '6px 14px',
+              borderRadius: '4px',
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              letterSpacing: '0.1em',
+              opacity: 0.9,
+            }}
+          >
+            ECOSYSTEM PORTAL
           </button>
         </div>
 

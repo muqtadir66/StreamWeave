@@ -1,0 +1,367 @@
+.portal {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #04060b;
+  overflow: hidden;
+}
+
+.portal__bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.95;
+  filter: saturate(1.05) contrast(1.05);
+}
+
+.portal__chrome {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  padding: clamp(16px, 3vw, 36px);
+  gap: clamp(16px, 2.2vw, 26px);
+}
+
+.portal__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.portal__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.portal__kicker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.portal__subkicker {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: rgba(0, 246, 255, 0.8);
+}
+
+.portal__wallet {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(8, 12, 20, 0.45);
+  border: 1px solid rgba(0, 246, 255, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.portal__walletMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.portal__walletLabel {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.portal__walletValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.portal__walletValue--muted {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.portal__connectBtn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+}
+
+.portal__hero {
+  margin-top: clamp(12px, 2vw, 18px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 980px;
+}
+
+.portal__headline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: clamp(32px, 5vw, 64px);
+  letter-spacing: 0.06em;
+  line-height: 1.02;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 0 16px rgba(0, 246, 255, 0.16);
+}
+
+.portal__tagline {
+  font-size: clamp(14px, 1.6vw, 18px);
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.72);
+  max-width: 720px;
+}
+
+.portal__split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(14px, 2.2vw, 22px);
+  align-items: stretch;
+}
+
+@media (min-width: 980px) {
+  .portal__split {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.portal-card {
+  text-align: left;
+  width: 100%;
+  height: 100%;
+  padding: clamp(18px, 2.4vw, 28px);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: radial-gradient(1200px 600px at 20% 10%, rgba(0, 246, 255, 0.14), transparent 60%),
+    rgba(8, 12, 20, 0.4);
+  backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  justify-content: space-between;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  transform: translateZ(0);
+}
+
+.portal-card--right {
+  background: radial-gradient(1200px 600px at 80% 10%, rgba(255, 196, 0, 0.14), transparent 60%),
+    rgba(8, 12, 20, 0.4);
+}
+
+.portal-card:hover {
+  transform: translateY(-2px);
+}
+
+.portal-card__titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.portal-card__title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: clamp(18px, 2.2vw, 26px);
+  letter-spacing: 0.22em;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.portal-card__subtitle {
+  margin-top: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.64);
+  max-width: 520px;
+  line-height: 1.3;
+}
+
+.portal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.portal-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 18px currentColor;
+  animation: portalPulse 1.6s ease-in-out infinite;
+}
+
+.portal-pill--green {
+  color: rgba(0, 255, 136, 0.92);
+}
+
+.portal-pill--yellow {
+  color: rgba(255, 204, 0, 0.9);
+}
+
+@keyframes portalPulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+.portal-card__art {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.portal-card__glyph {
+  position: absolute;
+  inset: -40%;
+  background-size: 60px 60px;
+  opacity: 0.7;
+  filter: blur(0.2px);
+  transform: rotate(-8deg) scale(1.1);
+}
+
+.portal-card__glyph--left {
+  background-image:
+    radial-gradient(circle at 30px 12px, rgba(0, 246, 255, 0.32), transparent 40%),
+    radial-gradient(circle at 18px 42px, rgba(0, 255, 136, 0.24), transparent 45%),
+    linear-gradient(90deg, rgba(0, 246, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(0, 246, 255, 0.18) 1px, transparent 1px);
+}
+
+.portal-card__glyph--right {
+  background-image:
+    radial-gradient(circle at 20px 20px, rgba(255, 204, 0, 0.22), transparent 45%),
+    radial-gradient(circle at 46px 48px, rgba(255, 60, 60, 0.18), transparent 50%),
+    linear-gradient(90deg, rgba(255, 204, 0, 0.16) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255, 204, 0, 0.16) 1px, transparent 1px);
+}
+
+.portal-card__scanline {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    transparent 80%
+  );
+  opacity: 0.45;
+  animation: portalScan 3.2s linear infinite;
+}
+
+@keyframes portalScan {
+  0% {
+    transform: translateY(-30%);
+  }
+  100% {
+    transform: translateY(30%);
+  }
+}
+
+.portal-card__ctaRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.portal-card__cta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.28em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.portal-card__hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.portal__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.glitch {
+  position: relative;
+}
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.glitch::before {
+  transform: translate(2px, -1px);
+  color: rgba(0, 246, 255, 0.75);
+  clip-path: inset(0 0 62% 0);
+  animation: glitchA 3.4s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+  transform: translate(-2px, 1px);
+  color: rgba(255, 60, 160, 0.55);
+  clip-path: inset(46% 0 0 0);
+  animation: glitchB 4.1s infinite linear alternate-reverse;
+}
+
+@keyframes glitchA {
+  0%,
+  92%,
+  100% {
+    clip-path: inset(0 0 62% 0);
+    opacity: 0;
+  }
+  93% {
+    opacity: 0.6;
+  }
+  96% {
+    clip-path: inset(0 0 26% 0);
+    transform: translate(3px, -2px);
+  }
+}
+
+@keyframes glitchB {
+  0%,
+  90%,
+  100% {
+    clip-path: inset(46% 0 0 0);
+    opacity: 0;
+  }
+  91% {
+    opacity: 0.55;
+  }
+  95% {
+    clip-path: inset(72% 0 0 0);
+    transform: translate(-3px, 2px);
+  }
+}
+
