@@ -8,17 +8,147 @@ body {
   -moz-osx-font-smoothing: grayscale;
 
   /* --- FIX: Disable text selection and tap highlights --- */
-  -webkit-user-select: none; /* Safari */
-  -ms-user-select: none; /* IE 10+ */
-  user-select: none; /* Standard */
+  -webkit-user-select: none;
+  /* Safari */
+  -ms-user-select: none;
+  /* IE 10+ */
+  user-select: none;
+  /* Standard */
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
 }
 
-#root, body, html, canvas {
+/* ============================================
+   WEAVE ECOSYSTEM DESIGN TOKENS
+   ============================================ */
+:root {
+  /* Primary Colors */
+  --weave-cyan: #00f6ff;
+  --weave-green: #00ff88;
+  --weave-red: #ff4444;
+  --weave-yellow: #ffcc00;
+  --weave-purple: #9945FF;
+  --weave-magenta: #ff00ff;
+  --weave-orange: #ff8800;
+
+  /* Backgrounds */
+  --bg-void: #000000;
+  --bg-deep: #0a0a14;
+  --bg-panel: rgba(10, 15, 30, 0.85);
+  --bg-dark: rgba(0, 10, 20, 0.95);
+
+  /* Glass Effect */
+  --glass-bg: rgba(0, 20, 40, 0.6);
+  --glass-border: rgba(0, 246, 255, 0.2);
+  --glass-blur: blur(12px);
+
+  /* Typography */
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', 'Segoe UI', sans-serif;
+  --font-mono: 'Consolas', 'Monaco', monospace;
+}
+
+/* Glitch Text Effect */
+.glitch {
+  position: relative;
+  animation: glitch 3s infinite;
+}
+
+@keyframes glitch {
+
+  0%,
+  90%,
+  100% {
+    transform: translate(0);
+    filter: none;
+  }
+
+  92% {
+    transform: translate(-2px, 1px);
+    filter: hue-rotate(90deg);
+  }
+
+  94% {
+    transform: translate(2px, -1px);
+    filter: hue-rotate(-90deg);
+  }
+
+  96% {
+    transform: translate(-1px, 2px);
+  }
+
+  98% {
+    transform: translate(1px, -2px);
+  }
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Neon Glow Utilities */
+.neon-cyan {
+  box-shadow: 0 0 5px var(--weave-cyan),
+    0 0 10px var(--weave-cyan),
+    0 0 20px rgba(0, 246, 255, 0.3);
+}
+
+.neon-green {
+  box-shadow: 0 0 5px var(--weave-green),
+    0 0 10px var(--weave-green),
+    0 0 20px rgba(0, 255, 136, 0.3);
+}
+
+.neon-yellow {
+  box-shadow: 0 0 5px var(--weave-yellow),
+    0 0 10px var(--weave-yellow),
+    0 0 20px rgba(255, 204, 0, 0.3);
+}
+
+/* Glass Panel Component */
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 8px;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 246, 255, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 246, 255, 0.5);
+}
+
+#root,
+body,
+html,
+canvas {
   touch-action: none;
-  
+
   /* --- FIX: Disable text selection for these too --- */
   -webkit-user-select: none;
   -ms-user-select: none;
@@ -35,7 +165,7 @@ body {
   /* Fallback for older browsers */
   height: -webkit-fill-available;
   /* Prevent scrolling/bouncing on the root */
-  overflow: hidden; 
+  overflow: hidden;
 }
 
 /* --- Button Overhaul (Original) --- */

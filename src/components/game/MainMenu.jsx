@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../../stores/gameStore';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
@@ -16,13 +17,13 @@ const MainMenu = () => {
   const lastPayout = useGameStore((s) => s.payout);
   const needsFinalization = useGameStore((s) => s.needsFinalization);
   const activeRoundId = useGameStore((s) => s.activeRoundId);
-  
+
   const syncSession = useGameStore((s) => s.syncSession);
   const depositFunds = useGameStore((s) => s.depositFunds);
   const withdrawFunds = useGameStore((s) => s.withdrawFunds);
   const abortActiveRound = useGameStore((s) => s.abortActiveRound);
   const withdrawInFlight = useGameStore((s) => s.withdrawInFlight);
-  
+
   // [NEW] Audio Store Hooks
   const soundEnabled = useGameStore((s) => s.soundEnabled);
   const toggleSound = useGameStore((s) => s.toggleSound);
@@ -30,6 +31,7 @@ const MainMenu = () => {
   const walletCtx = useWallet();
   const { connected, publicKey, disconnect } = walletCtx;
   const { setVisible } = useWalletModal();
+  const navigate = useNavigate();
 
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -54,7 +56,7 @@ const MainMenu = () => {
   useEffect(() => {
     if (status === 'crashed') {
       setMenuVisible(false);
-      const timer = setTimeout(() => setMenuVisible(true), 1500); 
+      const timer = setTimeout(() => setMenuVisible(true), 1500);
       return () => clearTimeout(timer);
     } else if (status === 'idle') {
       setMenuVisible(true);
@@ -66,7 +68,7 @@ const MainMenu = () => {
   if ((status !== 'idle' && status !== 'crashed') || !menuVisible) return null;
 
   const isCrashed = status === 'crashed';
-  const netChange = lastPayout - lastWager; 
+  const netChange = lastPayout - lastWager;
 
   const adjustWager = (amount) => {
     const newWager = Math.min(500000, Math.max(500, wager + amount));
@@ -74,7 +76,7 @@ const MainMenu = () => {
   };
 
   const handleConnect = () => {
-    setVisible(true); 
+    setVisible(true);
   };
 
   const handleDeposit = () => {
@@ -109,16 +111,41 @@ const MainMenu = () => {
       </style>
 
       <div style={{
-        ...styles.contentWrapper, 
+        ...styles.contentWrapper,
         justifyContent: connected ? 'flex-start' : 'center',
         filter: showHowToPlay ? 'blur(5px)' : 'none',
         animation: 'fadeIn 0.5s ease-out',
         opacity: 1
       }}>
         <style>
-            {`@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`}
+          {`@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`}
         </style>
-        
+
+        {/* --- PORTAL BACK BUTTON --- */}
+        <button
+          onClick={() => navigate('/')}
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top) + 12px)',
+            left: '16px',
+            background: 'rgba(0, 20, 40, 0.8)',
+            border: '1px solid rgba(0, 246, 255, 0.3)',
+            color: 'rgba(0, 246, 255, 0.8)',
+            padding: '8px 16px',
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+            fontFamily: "'Rajdhani', sans-serif",
+            fontWeight: 700,
+            letterSpacing: '0.1em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            zIndex: 10,
+          }}
+        >
+          ← PORTAL
+        </button>
+
         {/* --- HEADER --- */}
         <div style={styles.header}>
           <div style={styles.studioLabel}>
@@ -126,17 +153,17 @@ const MainMenu = () => {
           </div>
           <h1 style={styles.title}>STREAM<span style={{ color: '#00f6ff' }}>WEAVE</span></h1>
           <div style={styles.subtitle}>WEAVE REWARD PROTOCOL // SOLANA</div>
-          
+
           {/* [NEW] Main Menu Sound Toggle */}
-          <button 
+          <button
             onClick={toggleSound}
             style={{
-                marginTop: '10px',
-                background: 'rgba(0, 246, 255, 0.05)', 
-                border: '1px solid rgba(0, 246, 255, 0.3)',
-                color: soundEnabled ? '#00ff88' : '#888',
-                cursor: 'pointer', padding: '6px 14px', borderRadius: '4px',
-                fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.1em'
+              marginTop: '10px',
+              background: 'rgba(0, 246, 255, 0.05)',
+              border: '1px solid rgba(0, 246, 255, 0.3)',
+              color: soundEnabled ? '#00ff88' : '#888',
+              cursor: 'pointer', padding: '6px 14px', borderRadius: '4px',
+              fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.1em'
             }}
           >
             AUDIO: {soundEnabled ? 'ENABLED' : 'DISABLED'}
@@ -145,25 +172,25 @@ const MainMenu = () => {
 
         {/* CONTROLS CONTAINER */}
         <div style={styles.container}>
-          
+
           {/* --- WALLET & STATS CARD --- */}
           <div style={styles.statsCard}>
             <div style={styles.row}>
               <span style={styles.label}>
                 {connected ? 'OPERATOR ID' : 'SYSTEM STATUS'}
               </span>
-              <span style={{...styles.value, color: connected ? '#fff' : '#888', fontSize: connected ? '0.9rem' : '1.2rem'}}>
+              <span style={{ ...styles.value, color: connected ? '#fff' : '#888', fontSize: connected ? '0.9rem' : '1.2rem' }}>
                 {connected ? publicKey.toBase58().slice(0, 4) + '....' + publicKey.toBase58().slice(-4) : 'DISCONNECTED'}
               </span>
             </div>
 
             <div style={styles.divider} />
-            
+
             <div style={styles.row}>
               <span style={styles.label}>SESSION BALANCE</span>
-              <span style={styles.value}>{balance.toLocaleString()} <span style={{fontSize:'0.8rem', color:'#00f6ff'}}>$WEAVE</span></span>
+              <span style={styles.value}>{balance.toLocaleString()} <span style={{ fontSize: '0.8rem', color: '#00f6ff' }}>$WEAVE</span></span>
             </div>
-            
+
             {/* Recent Run Stats */}
             {connected && isCrashed && (
               <>
@@ -180,7 +207,7 @@ const MainMenu = () => {
 
           {/* --- MAIN INTERFACE (Only when connected) --- */}
           {connected ? (
-              <>
+            <>
               {/* --- BANKING PANEL (New) --- */}
               <div style={styles.bankingPanel}>
                 <div style={styles.label}>SESSION BANK</div>
@@ -196,11 +223,11 @@ const MainMenu = () => {
                     ROUND IN PROGRESS (ANOTHER DEVICE OR PENDING SETTLEMENT)
                   </div>
                 )}
-                
+
                 {/* Deposit Row */}
-                <div style={{display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px'}}>
-                  <input 
-                    type="number" 
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                  <input
+                    type="number"
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(Number(e.target.value))}
                     style={styles.input}
@@ -212,7 +239,7 @@ const MainMenu = () => {
                       e.stopPropagation();
                       handleDeposit();
                     }}
-                    style={{...styles.actionBtn, opacity: depositDisabled ? 0.5 : 1}}
+                    style={{ ...styles.actionBtn, opacity: depositDisabled ? 0.5 : 1 }}
                     disabled={depositDisabled}
                   >
                     DEPOSIT
@@ -285,11 +312,11 @@ const MainMenu = () => {
                   </button>
                 </div>
                 <div style={styles.sliderContainer}>
-                  <input 
-                    type="range" 
-                    min="500" 
-                    max="500000" 
-                    step="500" 
+                  <input
+                    type="range"
+                    min="500"
+                    max="500000"
+                    step="500"
                     value={wager}
                     onChange={(e) => setWager(parseInt(e.target.value))}
                     style={styles.slider}
@@ -346,14 +373,14 @@ const MainMenu = () => {
               </div>
 
               {/* Disconnect Link */}
-              <button 
+              <button
                 onPointerUp={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   disconnect();
                 }}
                 style={{
-                  background: 'none', border: 'none', color: '#444', 
+                  background: 'none', border: 'none', color: '#444',
                   fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '0.1em', marginTop: '2px'
                 }}
               >
@@ -373,7 +400,7 @@ const MainMenu = () => {
                 onMouseLeave={() => setHoveredBtn(null)}
                 style={{
                   ...styles.button,
-                  borderColor: '#9945FF', 
+                  borderColor: '#9945FF',
                   color: '#9945FF',
                   ...(hoveredBtn === 'connect' ? { background: 'rgba(153, 69, 255, 0.2)', color: '#fff' } : {})
                 }}
@@ -382,8 +409,8 @@ const MainMenu = () => {
                   [ CONNECT WALLET ]
                 </span>
               </button>
-              <div style={{...styles.controlsFooter, marginTop: '15px'}}>
-                 ACCESS THE STREAMWEAVE PROTOCOL
+              <div style={{ ...styles.controlsFooter, marginTop: '15px' }}>
+                ACCESS THE STREAMWEAVE PROTOCOL
               </div>
             </div>
           )}
@@ -401,13 +428,13 @@ const MainMenu = () => {
 
           {/* Footer Info */}
           {connected && (
-             <div style={styles.controlsFooter}>
-             <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', textAlign: 'center', lineHeight: '1.6' }}>
-               HOLD BOOST TO EARN • RELEASE TO BANK<br/>
-               <span style={{color: '#ff4444'}}>FUEL DRAINS WHEN IDLE</span> • <span style={{color: '#00f6ff'}}>REGENS WHEN BOOSTING</span><br/>
-               10s = 0.5x | 20s = 1.5x | 30s = 3.5x | 40s = 8.0x | 50s = 20x
-             </div>
-           </div>
+            <div style={styles.controlsFooter}>
+              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '11px', textAlign: 'center', lineHeight: '1.6' }}>
+                HOLD BOOST TO EARN • RELEASE TO BANK<br />
+                <span style={{ color: '#ff4444' }}>FUEL DRAINS WHEN IDLE</span> • <span style={{ color: '#00f6ff' }}>REGENS WHEN BOOSTING</span><br />
+                10s = 0.5x | 20s = 1.5x | 30s = 3.5x | 40s = 8.0x | 50s = 20x
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -421,22 +448,22 @@ const MainMenu = () => {
             </div>
             <div style={styles.modalBody}>
               <div style={styles.instructionBlock}>
-                <h3 style={{color: '#00f6ff'}}>OBJECTIVE</h3>
+                <h3 style={{ color: '#00f6ff' }}>OBJECTIVE</h3>
                 <p>Wager <b>$WEAVE</b> tokens and pilot your interceptor. Your goal is to <b>BOOST</b> for as long as possible to build a multiplier, then <b>RELEASE</b> to bank your winnings before you crash.</p>
               </div>
               <div style={styles.instructionBlock}>
-                <h3 style={{color: '#ff4444'}}>THE FUEL RULE (ANTI-CAMP)</h3>
-                <p>You cannot fly safely forever. <b>Fuel drains rapidly while idle.</b><br/>You MUST boost to regenerate fuel. Camping = Death.</p>
+                <h3 style={{ color: '#ff4444' }}>THE FUEL RULE (ANTI-CAMP)</h3>
+                <p>You cannot fly safely forever. <b>Fuel drains rapidly while idle.</b><br />You MUST boost to regenerate fuel. Camping = Death.</p>
               </div>
               <div style={styles.instructionBlock}>
-                <h3 style={{color: '#d946ef'}}>PAYOUT TIERS</h3>
+                <h3 style={{ color: '#d946ef' }}>PAYOUT TIERS</h3>
                 <div style={styles.payoutTable}>
-                  <div style={styles.payoutRow}><span>&lt; 10s</span> <span style={{color: '#ff4444'}}>0.0x (LOSS)</span></div>
-                  <div style={styles.payoutRow}><span>10s+</span> <span style={{color: '#fff'}}>0.5x (SECURE)</span></div>
-                  <div style={styles.payoutRow}><span>20s+</span> <span style={{color: '#00f6ff'}}>1.5x (PROFIT)</span></div>
-                  <div style={styles.payoutRow}><span>30s+</span> <span style={{color: '#d946ef'}}>3.5x (MOON)</span></div>
-                  <div style={styles.payoutRow}><span>40s+</span> <span style={{color: '#facc15'}}>8.0x (MARS)</span></div>
-                  <div style={styles.payoutRow}><span>50s+</span> <span style={{color: '#ff0000'}}>20x (JACKPOT)</span></div>
+                  <div style={styles.payoutRow}><span>&lt; 10s</span> <span style={{ color: '#ff4444' }}>0.0x (LOSS)</span></div>
+                  <div style={styles.payoutRow}><span>10s+</span> <span style={{ color: '#fff' }}>0.5x (SECURE)</span></div>
+                  <div style={styles.payoutRow}><span>20s+</span> <span style={{ color: '#00f6ff' }}>1.5x (PROFIT)</span></div>
+                  <div style={styles.payoutRow}><span>30s+</span> <span style={{ color: '#d946ef' }}>3.5x (MOON)</span></div>
+                  <div style={styles.payoutRow}><span>40s+</span> <span style={{ color: '#facc15' }}>8.0x (MARS)</span></div>
+                  <div style={styles.payoutRow}><span>50s+</span> <span style={{ color: '#ff0000' }}>20x (JACKPOT)</span></div>
                 </div>
               </div>
             </div>
@@ -456,8 +483,8 @@ const MainMenu = () => {
         open={showLeaderboard}
         onClose={() => setShowLeaderboard(false)}
       />
-	    </div>
-	  );
+    </div>
+  );
 };
 
 const styles = {
@@ -484,7 +511,7 @@ const styles = {
     transition: 'filter 0.3s ease',
     minHeight: 'calc(100vh - 24px)',
   },
-  header: { 
+  header: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     textAlign: 'center', width: 'auto', maxWidth: '95vw',
   },
@@ -492,19 +519,19 @@ const styles = {
     fontSize: '0.75rem', letterSpacing: '0.35em', color: '#888', marginBottom: '2px', fontWeight: '700'
   },
   title: {
-    fontFamily: "'Orbitron', sans-serif", 
-    fontSize: 'clamp(1.5rem, 8vw, 5.2rem)', 
+    fontFamily: "'Orbitron', sans-serif",
+    fontSize: 'clamp(1.5rem, 8vw, 5.2rem)',
     margin: 0, color: '#fff', letterSpacing: '0.05em', fontWeight: '900',
     textShadow: '0 0 30px rgba(0, 246, 255, 0.4)',
     whiteSpace: 'nowrap',
   },
-  subtitle: { 
+  subtitle: {
     color: 'rgba(255,255,255,0.8)', letterSpacing: '0.45em', fontSize: '0.68rem', marginTop: '2px',
     fontWeight: '700', textShadow: '0 0 10px rgba(0,0,0,0.5)', textAlign: 'center'
   },
   container: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    gap: 'clamp(10px, 1.6vh, 14px)', width: 'min(450px, 92vw)', 
+    gap: 'clamp(10px, 1.6vh, 14px)', width: 'min(450px, 92vw)',
   },
   quickActionsRow: {
     width: '100%',
@@ -535,7 +562,7 @@ const styles = {
   label: { fontSize: '0.7rem', color: '#00f6ff', letterSpacing: '0.1em' },
   value: { fontSize: '1.2rem', color: '#fff', fontWeight: 'bold', fontFamily: 'monospace' },
   divider: { height: '1px', background: 'rgba(255,255,255,0.1)', width: '100%', margin: '5px 0' },
-  
+
   // BANKING STYLES
   bankingPanel: {
     width: '100%', background: 'rgba(0, 40, 20, 0.6)', padding: 'clamp(12px, 1.6vh, 15px)',
@@ -561,14 +588,14 @@ const styles = {
   wagerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0' },
   adjustBtn: {
     background: 'transparent', border: '1px solid #00f6ff', color: '#00f6ff',
-    width: '30px', height: '30px', borderRadius: '4px', cursor: 'pointer', 
+    width: '30px', height: '30px', borderRadius: '4px', cursor: 'pointer',
     fontSize: '1.2rem',
     display: 'flex', justifyContent: 'center', alignItems: 'center',
     padding: 0, lineHeight: 1, paddingBottom: '2px'
   },
-  wagerDisplay: { 
-    fontSize: 'clamp(1.2rem, 6vw, 1.5rem)', 
-    fontFamily: 'monospace', color: '#fff' 
+  wagerDisplay: {
+    fontSize: 'clamp(1.2rem, 6vw, 1.5rem)',
+    fontFamily: 'monospace', color: '#fff'
   },
   sliderContainer: { width: '100%', display: 'flex', justifyContent: 'center' },
   slider: { width: '100%', accentColor: '#00f6ff', cursor: 'pointer' },
@@ -614,7 +641,7 @@ const styles = {
     background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '4px'
   },
   payoutRow: {
-    display: 'flex', justifyContent: 'space-between', 
+    display: 'flex', justifyContent: 'space-between',
     fontFamily: 'monospace', fontSize: '1rem'
   },
   closeBtn: {
