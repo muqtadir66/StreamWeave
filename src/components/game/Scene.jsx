@@ -309,6 +309,14 @@ function Scene() {
       void primeCrashSfx()
       boostTouchIdRef.current = t.identifier
       setBoosting(true)
+      // For iOS autoplay policy: start/resume the background music within a real user gesture.
+      // Music itself is still controlled by BackgroundMusic (pauses when boost ends).
+      if (soundEnabled) {
+        try {
+          const bgm = document.getElementById('streamweave-bgm')
+          if (bgm && typeof bgm.play === 'function') bgm.play().catch(() => {})
+        } catch {}
+      }
       if (e.cancelable) e.preventDefault()
       noteDebug('boost', 'touchstart')
     }
