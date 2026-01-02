@@ -27,6 +27,7 @@ export default defineConfig({
     dedupe: ['@solana/web3.js', '@coral-xyz/anchor'],
   },
   server: {
-    allowedHosts: ['theda-sagittate-tripp.ngrok-free.dev'],
+    host: true, // Listen on all network interfaces (0.0.0.0)
+    allowedHosts: true, // Disable host checking entirely
   },
 })

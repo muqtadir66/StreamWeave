@@ -2,381 +2,333 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useGridStore } from '../../stores/gridStore';
 
 /**
- * GridCanvas - Simplified, correct implementation
- * Uses display coordinates throughout, DPR only for crisp rendering
+ * GridCanvas - High-performance zoomable canvas for the 1000x1000 grid
+ * Uses HTML5 Canvas 2D context for efficient rendering
+ * Implements virtual rendering to only draw visible blocks
+ * Supports multi-block selection with Ctrl/Cmd+Click
  */
 function GridCanvas() {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
-    const displaySize = useRef({ width: 0, height: 0 });
     const isDragging = useRef(false);
     const lastPos = useRef({ x: 0, y: 0 });
-    const dragStart = useRef({ x: 0, y: 0 }); // Track start for click detection
-    const lastPinchDist = useRef(0);
+    const dragStartPos = useRef({ x: 0, y: 0 });
+    const animFrameRef = useRef(null);
 
     const viewport = useGridStore(s => s.viewport);
     const blocks = useGridStore(s => s.blocks);
-    const selectedBlocks = useGridStore(s => s.selectedBlocks);
+    const selectedBlockIds = useGridStore(s => s.selectedBlockIds);
     const hoveredBlockId = useGridStore(s => s.hoveredBlockId);
-    const mode = useGridStore(s => s.mode);
-    const selectionStart = useGridStore(s => s.selectionStart);
-    const selectionEnd = useGridStore(s => s.selectionEnd);
-    const isSelecting = useGridStore(s => s.isSelecting);
-
     const pan = useGridStore(s => s.pan);
-    const zoomAction = useGridStore(s => s.zoom);
-    const selectSingleBlock = useGridStore(s => s.selectSingleBlock);
-    const startSelection = useGridStore(s => s.startSelection);
-    const updateSelection = useGridStore(s => s.updateSelection);
-    const endSelection = useGridStore(s => s.endSelection);
+    const zoom = useGridStore(s => s.zoom);
+    const selectBlock = useGridStore(s => s.selectBlock);
+    const toggleBlockSelection = useGridStore(s => s.toggleBlockSelection);
     const hoverBlock = useGridStore(s => s.hoverBlock);
 
     const GRID_SIZE = 100;
-    const BLOCK_SIZE = 10; // Pixels per block at zoom 1
+    const BLOCK_SIZE = 10;
 
-    // Convert client coordinates to grid coordinates
-    // Uses display dimensions, NOT canvas internal dimensions
-    const clientToGrid = useCallback((clientX, clientY) => {
-        const container = containerRef.current;
-        if (!container) return null;
+    // Convert canvas coordinates to grid coordinates
+    const canvasToGrid = useCallback((canvasX, canvasY) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return null;
 
-        const rect = container.getBoundingClientRect();
-        const displayWidth = rect.width;
-        const displayHeight = rect.height;
+        const rect = canvas.getBoundingClientRect();
+        const x = canvasX - rect.left;
+        const y = canvasY - rect.top;
 
-        // Position relative to canvas top-left in display pixels
-        const px = clientX - rect.left;
-        const py = clientY - rect.top;
-
-        // Calculate block size in display pixels
         const blockSize = BLOCK_SIZE * viewport.zoom;
+        const offsetX = (canvas.width / 2) - (viewport.x * blockSize);
+        const offsetY = (canvas.height / 2) - (viewport.y * blockSize);
 
-        // Calculate offset to center viewport on (viewport.x, viewport.y)
-        const offsetX = (displayWidth / 2) - (viewport.x * blockSize);
-        const offsetY = (displayHeight / 2) - (viewport.y * blockSize);
+        const gridX = Math.floor((x - offsetX) / blockSize);
+        const gridY = Math.floor((y - offsetY) / blockSize);
 
-        // Convert to grid coordinates
-        const gridX = Math.floor((px - offsetX) / blockSize);
-        const gridY = Math.floor((py - offsetY) / blockSize);
-
-        // Bounds check
         if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) {
             return null;
         }
 
         return { x: gridX, y: gridY, id: gridY * 100 + gridX };
-    }, [viewport.x, viewport.y, viewport.zoom]);
+    }, [viewport]);
 
     // Draw the grid
     const draw = useCallback(() => {
         const canvas = canvasRef.current;
-        if (!canvas || displaySize.current.width === 0) return;
+        if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-        const width = displaySize.current.width;
-        const height = displaySize.current.height;
+        const { width, height } = canvas;
 
-        // Reset transform and scale for DPR
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        // Clear
-        ctx.fillStyle = '#0a0a15';
+        // Clear canvas
+        ctx.fillStyle = '#0a0a14';
         ctx.fillRect(0, 0, width, height);
 
         const blockSize = BLOCK_SIZE * viewport.zoom;
         const offsetX = (width / 2) - (viewport.x * blockSize);
         const offsetY = (height / 2) - (viewport.y * blockSize);
 
-        // Calculate visible grid range
+        // Calculate visible range
         const startX = Math.max(0, Math.floor(-offsetX / blockSize));
         const startY = Math.max(0, Math.floor(-offsetY / blockSize));
         const endX = Math.min(GRID_SIZE, Math.ceil((width - offsetX) / blockSize));
         const endY = Math.min(GRID_SIZE, Math.ceil((height - offsetY) / blockSize));
 
-        // Draw grid background (the 100x100 area)
-        const gridLeft = offsetX;
-        const gridTop = offsetY;
-        const gridWidth = GRID_SIZE * blockSize;
-        const gridHeight = GRID_SIZE * blockSize;
-        ctx.fillStyle = '#0d0d1a';
-        ctx.fillRect(gridLeft, gridTop, gridWidth, gridHeight);
-
-        // Draw grid lines
+        // Draw empty grid
         ctx.strokeStyle = '#1a1a2e';
         ctx.lineWidth = 1;
 
-        for (let x = startX; x <= endX; x++) {
-            const screenX = Math.round(offsetX + x * blockSize);
-            ctx.beginPath();
-            ctx.moveTo(screenX + 0.5, Math.max(0, gridTop));
-            ctx.lineTo(screenX + 0.5, Math.min(height, gridTop + gridHeight));
-            ctx.stroke();
-        }
+        for (let x = startX; x < endX; x++) {
+            for (let y = startY; y < endY; y++) {
+                const screenX = offsetX + x * blockSize;
+                const screenY = offsetY + y * blockSize;
 
-        for (let y = startY; y <= endY; y++) {
-            const screenY = Math.round(offsetY + y * blockSize);
-            ctx.beginPath();
-            ctx.moveTo(Math.max(0, gridLeft), screenY + 0.5);
-            ctx.lineTo(Math.min(width, gridLeft + gridWidth), screenY + 0.5);
-            ctx.stroke();
+                // Draw empty block border
+                ctx.strokeRect(screenX, screenY, blockSize, blockSize);
+            }
         }
 
         // Draw owned blocks
         blocks.forEach((block) => {
-            if (block.x < startX - 1 || block.x > endX || block.y < startY - 1 || block.y > endY) return;
+            if (block.x < startX || block.x >= endX || block.y < startY || block.y >= endY) {
+                return;
+            }
 
             const screenX = offsetX + block.x * blockSize;
             const screenY = offsetY + block.y * blockSize;
 
+            // Fill with block color
             ctx.fillStyle = block.color || '#00f6ff';
             ctx.fillRect(screenX + 1, screenY + 1, blockSize - 2, blockSize - 2);
+
+            // Neon border glow effect
+            ctx.shadowColor = block.color || '#00f6ff';
+            ctx.shadowBlur = 8;
+            ctx.strokeStyle = block.color || '#00f6ff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(screenX + 1, screenY + 1, blockSize - 2, blockSize - 2);
+            ctx.shadowBlur = 0;
         });
 
-        // Draw selected blocks
-        if (selectedBlocks.size > 0) {
-            selectedBlocks.forEach(blockId => {
-                const x = blockId % 100;
-                const y = Math.floor(blockId / 100);
-                if (x < startX - 1 || x > endX || y < startY - 1 || y > endY) return;
-
-                const screenX = offsetX + x * blockSize;
-                const screenY = offsetY + y * blockSize;
-
-                // Highlight fill
-                ctx.fillStyle = 'rgba(0, 246, 255, 0.35)';
-                ctx.fillRect(screenX, screenY, blockSize, blockSize);
-
-                // Border
-                ctx.strokeStyle = '#00f6ff';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(screenX + 1, screenY + 1, blockSize - 2, blockSize - 2);
-            });
-        }
-
-        // Draw hover block
-        if (hoveredBlockId !== null && !selectedBlocks.has(hoveredBlockId)) {
+        // Draw hovered block (if not already selected)
+        if (hoveredBlockId !== null && !selectedBlockIds.includes(hoveredBlockId)) {
             const x = hoveredBlockId % 100;
             const y = Math.floor(hoveredBlockId / 100);
             const screenX = offsetX + x * blockSize;
             const screenY = offsetY + y * blockSize;
 
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(screenX + 0.5, screenY + 0.5, blockSize - 1, blockSize - 1);
-        }
-
-        // Draw selection rectangle during drag
-        if (isSelecting && selectionStart && selectionEnd) {
-            const minX = Math.min(selectionStart.x, selectionEnd.x);
-            const minY = Math.min(selectionStart.y, selectionEnd.y);
-            const maxX = Math.max(selectionStart.x, selectionEnd.x);
-            const maxY = Math.max(selectionStart.y, selectionEnd.y);
-
-            const sx = offsetX + minX * blockSize;
-            const sy = offsetY + minY * blockSize;
-            const sw = (maxX - minX + 1) * blockSize;
-            const sh = (maxY - minY + 1) * blockSize;
-
-            ctx.fillStyle = 'rgba(0, 246, 255, 0.2)';
-            ctx.fillRect(sx, sy, sw, sh);
-
-            ctx.strokeStyle = '#00f6ff';
             ctx.lineWidth = 2;
-            ctx.setLineDash([6, 4]);
-            ctx.strokeRect(sx, sy, sw, sh);
-            ctx.setLineDash([]);
+            ctx.strokeRect(screenX, screenY, blockSize, blockSize);
         }
 
-    }, [viewport, blocks, selectedBlocks, hoveredBlockId, isSelecting, selectionStart, selectionEnd]);
+        // Draw ALL selected blocks with targeting brackets
+        selectedBlockIds.forEach((blockId, index) => {
+            const x = blockId % 100;
+            const y = Math.floor(blockId / 100);
+            const screenX = offsetX + x * blockSize;
+            const screenY = offsetY + y * blockSize;
+            const bracketSize = Math.min(blockSize * 0.3, 8);
+            const padding = 4;
 
-    // Setup canvas on mount and resize
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#ff4444';
+            ctx.shadowBlur = 10;
+
+            // Top-left bracket
+            ctx.beginPath();
+            ctx.moveTo(screenX - padding, screenY - padding + bracketSize);
+            ctx.lineTo(screenX - padding, screenY - padding);
+            ctx.lineTo(screenX - padding + bracketSize, screenY - padding);
+            ctx.stroke();
+
+            // Top-right bracket
+            ctx.beginPath();
+            ctx.moveTo(screenX + blockSize + padding - bracketSize, screenY - padding);
+            ctx.lineTo(screenX + blockSize + padding, screenY - padding);
+            ctx.lineTo(screenX + blockSize + padding, screenY - padding + bracketSize);
+            ctx.stroke();
+
+            // Bottom-left bracket
+            ctx.beginPath();
+            ctx.moveTo(screenX - padding, screenY + blockSize + padding - bracketSize);
+            ctx.lineTo(screenX - padding, screenY + blockSize + padding);
+            ctx.lineTo(screenX - padding + bracketSize, screenY + blockSize + padding);
+            ctx.stroke();
+
+            // Bottom-right bracket
+            ctx.beginPath();
+            ctx.moveTo(screenX + blockSize + padding - bracketSize, screenY + blockSize + padding);
+            ctx.lineTo(screenX + blockSize + padding, screenY + blockSize + padding);
+            ctx.lineTo(screenX + blockSize + padding, screenY + blockSize + padding - bracketSize);
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+
+            // Block number overlay (show selection order for multi-select)
+            if (selectedBlockIds.length > 1) {
+                ctx.fillStyle = 'rgba(255, 68, 68, 0.9)';
+                ctx.font = 'bold 10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${index + 1}`, screenX + blockSize / 2, screenY - 8);
+            } else {
+                // Single selection - show block ID
+                ctx.fillStyle = 'rgba(255, 68, 68, 0.9)';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`#${blockId}`, screenX + blockSize / 2, screenY - 10);
+            }
+        });
+
+        // Draw coordinate overlay in corner
+        ctx.fillStyle = 'rgba(0, 246, 255, 0.8)';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`GRID: ${GRID_SIZE}×${GRID_SIZE} | ZOOM: ${Math.round(viewport.zoom * 100)}%`, 10, 20);
+        ctx.fillText(`VIEW: (${Math.round(viewport.x)}, ${Math.round(viewport.y)})`, 10, 35);
+
+        // Show selection count if multiple selected
+        if (selectedBlockIds.length > 0) {
+            ctx.fillStyle = '#ff4444';
+            ctx.fillText(`SELECTED: ${selectedBlockIds.length} block${selectedBlockIds.length > 1 ? 's' : ''}`, 10, 50);
+        }
+
+    }, [viewport, blocks, selectedBlockIds, hoveredBlockId]);
+
+    // Handle resize
     useEffect(() => {
-        const setupCanvas = () => {
+        const handleResize = () => {
             const canvas = canvasRef.current;
             const container = containerRef.current;
             if (!canvas || !container) return;
 
-            const rect = container.getBoundingClientRect();
-            const dpr = window.devicePixelRatio || 1;
-
-            displaySize.current = { width: rect.width, height: rect.height };
-
-            // Set canvas internal size (scaled for DPR)
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-
-            // Set canvas display size
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = rect.height + 'px';
-
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
             draw();
         };
 
-        const resizeObserver = new ResizeObserver(setupCanvas);
-        if (containerRef.current) {
-            resizeObserver.observe(containerRef.current);
-        }
-
-        setupCanvas();
-
-        return () => resizeObserver.disconnect();
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, [draw]);
 
     // Redraw on state changes
     useEffect(() => {
-        const handle = requestAnimationFrame(draw);
-        return () => cancelAnimationFrame(handle);
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+        }
+        animFrameRef.current = requestAnimationFrame(draw);
+        return () => {
+            if (animFrameRef.current) {
+                cancelAnimationFrame(animFrameRef.current);
+            }
+        };
     }, [draw]);
 
     // Mouse handlers
     const handleMouseDown = (e) => {
-        e.preventDefault();
         isDragging.current = true;
         lastPos.current = { x: e.clientX, y: e.clientY };
-        dragStart.current = { x: e.clientX, y: e.clientY };
-
-        if (mode === 'select') {
-            const gridCoord = clientToGrid(e.clientX, e.clientY);
-            if (gridCoord) {
-                startSelection(gridCoord.x, gridCoord.y);
-            }
-        }
+        dragStartPos.current = { x: e.clientX, y: e.clientY };
     };
 
     const handleMouseMove = (e) => {
-        const gridCoord = clientToGrid(e.clientX, e.clientY);
+        const gridCoord = canvasToGrid(e.clientX, e.clientY);
         hoverBlock(gridCoord?.id ?? null);
 
-        if (!isDragging.current) return;
-
-        if (mode === 'navigate') {
+        if (isDragging.current) {
             const dx = e.clientX - lastPos.current.x;
             const dy = e.clientY - lastPos.current.y;
-            pan(dx, dy);
+            pan(-dx, -dy);
             lastPos.current = { x: e.clientX, y: e.clientY };
-        } else if (mode === 'select' && gridCoord) {
-            updateSelection(gridCoord.x, gridCoord.y);
         }
     };
 
     const handleMouseUp = (e) => {
-        if (!isDragging.current) return;
+        if (isDragging.current) {
+            const dx = Math.abs(e.clientX - dragStartPos.current.x);
+            const dy = Math.abs(e.clientY - dragStartPos.current.y);
 
-        if (mode === 'select') {
-            endSelection();
-        } else if (mode === 'navigate') {
-            // Was it a click (minimal movement)?
-            const dx = Math.abs(e.clientX - dragStart.current.x);
-            const dy = Math.abs(e.clientY - dragStart.current.y);
+            // If minimal movement, treat as click
             if (dx < 5 && dy < 5) {
-                const gridCoord = clientToGrid(e.clientX, e.clientY);
-                if (gridCoord) selectSingleBlock(gridCoord.id);
+                const gridCoord = canvasToGrid(e.clientX, e.clientY);
+
+                if (gridCoord) {
+                    // Check for Ctrl/Cmd key for multi-select
+                    if (e.ctrlKey || e.metaKey) {
+                        toggleBlockSelection(gridCoord.id);
+                    } else {
+                        selectBlock(gridCoord.id);
+                    }
+                } else {
+                    // Clicked outside grid, clear selection
+                    selectBlock(null);
+                }
             }
         }
-
         isDragging.current = false;
     };
 
-    // Touch handlers
-    const handleTouchStart = (e) => {
-        e.preventDefault();
-
-        if (e.touches.length === 2) {
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
-            isDragging.current = false;
-            return;
-        }
-
-        if (e.touches.length === 1) {
-            const t = e.touches[0];
-            isDragging.current = true;
-            lastPos.current = { x: t.clientX, y: t.clientY };
-            dragStart.current = { x: t.clientX, y: t.clientY };
-
-            if (mode === 'select') {
-                const gridCoord = clientToGrid(t.clientX, t.clientY);
-                if (gridCoord) startSelection(gridCoord.x, gridCoord.y);
-            }
-        }
-    };
-
-    const handleTouchMove = (e) => {
-        e.preventDefault();
-
-        if (e.touches.length === 2) {
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (lastPinchDist.current > 0) {
-                const delta = (dist - lastPinchDist.current) * 0.02;
-                zoomAction(delta);
-            }
-            lastPinchDist.current = dist;
-            return;
-        }
-
-        if (isDragging.current && e.touches.length === 1) {
-            const t = e.touches[0];
-
-            if (mode === 'navigate') {
-                const dx = t.clientX - lastPos.current.x;
-                const dy = t.clientY - lastPos.current.y;
-                pan(dx, dy);
-                lastPos.current = { x: t.clientX, y: t.clientY };
-            } else if (mode === 'select') {
-                const gridCoord = clientToGrid(t.clientX, t.clientY);
-                if (gridCoord) updateSelection(gridCoord.x, gridCoord.y);
-            }
-        }
-    };
-
-    const handleTouchEnd = (e) => {
-        if (e.touches.length === 0) {
-            if (isDragging.current && mode === 'select') {
-                endSelection();
-            } else if (isDragging.current && mode === 'navigate') {
-                const t = e.changedTouches[0];
-                if (t) {
-                    const dx = Math.abs(t.clientX - dragStart.current.x);
-                    const dy = Math.abs(t.clientY - dragStart.current.y);
-                    if (dx < 10 && dy < 10) {
-                        const gridCoord = clientToGrid(t.clientX, t.clientY);
-                        if (gridCoord) selectSingleBlock(gridCoord.id);
-                    }
-                }
-            }
-            isDragging.current = false;
-            lastPinchDist.current = 0;
-        }
+    const handleMouseLeave = () => {
+        isDragging.current = false;
+        hoverBlock(null);
     };
 
     const handleWheel = (e) => {
         e.preventDefault();
-        e.stopPropagation();
-        const delta = -Math.sign(e.deltaY) * 0.3;
-        zoomAction(delta);
+        const delta = -Math.sign(e.deltaY);
+        zoom(delta, e.clientX, e.clientY);
+    };
+
+    // Touch handlers
+    const handleTouchStart = (e) => {
+        if (e.touches.length === 1) {
+            isDragging.current = true;
+            lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            dragStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+    };
+
+    const handleTouchMove = (e) => {
+        if (isDragging.current && e.touches.length === 1) {
+            const dx = e.touches[0].clientX - lastPos.current.x;
+            const dy = e.touches[0].clientY - lastPos.current.y;
+            pan(-dx, -dy);
+            lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+    };
+
+    const handleTouchEnd = (e) => {
+        // Single tap detection for touch
+        if (isDragging.current && e.changedTouches.length === 1) {
+            const touch = e.changedTouches[0];
+            const dx = Math.abs(touch.clientX - dragStartPos.current.x);
+            const dy = Math.abs(touch.clientY - dragStartPos.current.y);
+
+            if (dx < 10 && dy < 10) {
+                const gridCoord = canvasToGrid(touch.clientX, touch.clientY);
+                if (gridCoord) {
+                    // On touch, toggle selection (acts like ctrl+click)
+                    toggleBlockSelection(gridCoord.id);
+                }
+            }
+        }
+        isDragging.current = false;
     };
 
     return (
         <div
             ref={containerRef}
             style={styles.container}
-            onWheel={handleWheel}
         >
             <canvas
                 ref={canvasRef}
-                style={{
-                    ...styles.canvas,
-                    cursor: mode === 'select' ? 'crosshair' : (isDragging.current ? 'grabbing' : 'grab'),
-                }}
+                style={styles.canvas}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={() => { isDragging.current = false; hoverBlock(null); }}
+                onMouseLeave={handleMouseLeave}
+                onWheel={handleWheel}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -387,15 +339,15 @@ function GridCanvas() {
 
 const styles = {
     container: {
-        width: '100%',
-        height: '100%',
+        flex: 1,
+        position: 'relative',
         overflow: 'hidden',
-        background: '#0a0a15',
+        background: '#0a0a14',
     },
     canvas: {
         width: '100%',
         height: '100%',
-        display: 'block',
+        cursor: 'crosshair',
         touchAction: 'none',
     },
 };

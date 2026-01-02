@@ -121,31 +121,6 @@ const MainMenu = () => {
           {`@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`}
         </style>
 
-        {/* --- PORTAL BACK BUTTON --- */}
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            position: 'absolute',
-            top: 'calc(env(safe-area-inset-top) + 12px)',
-            left: '16px',
-            background: 'rgba(0, 20, 40, 0.8)',
-            border: '1px solid rgba(0, 246, 255, 0.3)',
-            color: 'rgba(0, 246, 255, 0.8)',
-            padding: '8px 16px',
-            fontSize: '0.75rem',
-            cursor: 'pointer',
-            fontFamily: "'Rajdhani', sans-serif",
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            zIndex: 10,
-          }}
-        >
-          ← PORTAL
-        </button>
-
         {/* --- HEADER --- */}
         <div style={styles.header}>
           <div style={styles.studioLabel}>
@@ -354,6 +329,16 @@ const MainMenu = () => {
                   onPointerUp={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    navigate('/');
+                  }}
+                  style={styles.quickActionBtn}
+                >
+                  ← PORTAL
+                </button>
+                <button
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     setShowHistory(true);
                   }}
                   style={styles.quickActionBtn}
@@ -425,6 +410,19 @@ const MainMenu = () => {
           >
             [ HOW TO PLAY ]
           </button>
+
+          {!connected && (
+            <button
+              onPointerUp={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate('/');
+              }}
+              style={styles.howToPlayLink}
+            >
+              [ ← PORTAL ]
+            </button>
+          )}
 
           {/* Footer Info */}
           {connected && (
@@ -552,6 +550,7 @@ const styles = {
     letterSpacing: '0.12em',
     borderRadius: '4px',
     transition: 'all 0.2s',
+    outline: 'none',
   },
   statsCard: {
     background: 'rgba(0, 20, 40, 0.8)', border: '1px solid rgba(0, 246, 255, 0.2)',

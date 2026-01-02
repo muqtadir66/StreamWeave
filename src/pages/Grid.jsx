@@ -1,303 +1,302 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { useGridStore } from '../stores/gridStore';
 
 import GridCanvas from '../components/grid/GridCanvas';
 import GridTicker from '../components/grid/GridTicker';
+import GridInspector from '../components/grid/GridInspector';
 import GridControls from '../components/grid/GridControls';
 import BlockPurchaseModal from '../components/grid/BlockPurchaseModal';
 
 /**
  * Grid Page - The Weave Digital Billboard
- * Uses flex layout to ensure canvas fills available space
+ * A tactical war room for digital real estate
  */
 function Grid() {
     const navigate = useNavigate();
-    const { connected, publicKey } = useWallet();
+    const { connected, publicKey, disconnect } = useWallet();
     const { setVisible } = useWalletModal();
 
-    const selectedBlocks = useGridStore(s => s.selectedBlocks);
-    const blocks = useGridStore(s => s.blocks);
-    const getSelectionInfo = useGridStore(s => s.getSelectionInfo);
-    const openPurchaseModal = useGridStore(s => s.openPurchaseModal);
-    const clearSelection = useGridStore(s => s.clearSelection);
-    const mode = useGridStore(s => s.mode);
-
-    const [isMobile, setIsMobile] = useState(false);
-
-    useEffect(() => {
-        const check = () => setIsMobile(window.innerWidth < 768);
-        check();
-        window.addEventListener('resize', check);
-        return () => window.removeEventListener('resize', check);
-    }, []);
-
-    const selectionInfo = getSelectionInfo();
-    const hasSelection = selectedBlocks.size > 0;
-    const claimedCount = blocks.size;
-    const availableCount = 10000 - claimedCount;
-
     return (
-        <div style={styles.page}>
-            <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800&family=Rajdhani:wght@500;600;700&display=swap');
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-        html,body,#root { margin:0; padding:0; overflow:hidden; width:100%; height:100%; }
-      `}</style>
+        <div style={styles.container}>
+            {/* Load fonts */}
+            <style>
+                {`@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Rajdhani:wght@500;600;700&display=swap');`}
+                {`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+          }
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}
+            </style>
 
-            {/* Header */}
+            {/* Top Navigation Bar */}
             <header style={styles.header}>
-                <button onClick={() => navigate('/')} style={styles.backBtn}>
-                    ← {!isMobile && 'PORTAL'}
-                </button>
-
-                <h1 style={styles.title}>
-                    THE <span style={{ color: '#ffcc00' }}>WEAVE</span>
-                </h1>
-
-                <div style={styles.statusBadge}>
-                    <span style={styles.dot} />
-                    {isMobile ? 'INIT' : 'INITIALIZING'}
+                <div style={styles.headerLeft}>
+                    <button onClick={() => navigate('/')} style={styles.backBtn}>
+                        ← PORTAL
+                    </button>
+                    <div style={styles.logoSection}>
+                        <h1 style={styles.logo}>THE <span style={{ color: '#ffcc00' }}>WEAVE</span></h1>
+                        <div style={styles.subtitle}>DIGITAL TERRITORY PROTOCOL</div>
+                    </div>
                 </div>
 
-                {connected ? (
-                    <div style={styles.wallet}>
-                        {publicKey?.toBase58().slice(0, 4)}...{publicKey?.toBase58().slice(-4)}
+                <div style={styles.headerCenter}>
+                    {/* Status indicator */}
+                    <div style={styles.statusBadge}>
+                        <span style={styles.statusDot} />
+                        INITIALIZING
                     </div>
-                ) : (
-                    <button onClick={() => setVisible(true)} style={styles.connectBtn}>
-                        {isMobile ? '◈' : 'CONNECT'}
-                    </button>
-                )}
+                </div>
+
+                <div style={styles.headerRight}>
+                    {connected ? (
+                        <div style={styles.walletInfo}>
+                            <span style={styles.walletAddress}>
+                                {publicKey?.toBase58().slice(0, 4)}....{publicKey?.toBase58().slice(-4)}
+                            </span>
+                            <button onClick={disconnect} style={styles.disconnectBtn}>
+                                ✕
+                            </button>
+                        </div>
+                    ) : (
+                        <button onClick={() => setVisible(true)} style={styles.connectBtn}>
+                            CONNECT WALLET
+                        </button>
+                    )}
+                </div>
             </header>
 
-            {/* Ticker - desktop only */}
-            {!isMobile && <GridTicker />}
+            {/* Ticker */}
+            <GridTicker />
 
-            {/* Canvas Container - fills remaining space */}
-            <main style={styles.main}>
-                <GridCanvas />
-                <GridControls />
+            {/* Main Content */}
+            <div style={styles.main}>
+                {/* Canvas Area */}
+                <div style={styles.canvasWrapper}>
+                    <GridCanvas />
+                    <GridControls />
 
-                <div style={styles.hint}>
-                    {isMobile ? 'Tap to select • Pinch to zoom' : 'Drag to select • Scroll to zoom'}
+                    {/* Keyboard hints */}
+                    <div style={styles.hints}>
+                        Drag to pan • Scroll to zoom • Click to select • Ctrl+Click for multi-select
+                    </div>
                 </div>
-            </main>
 
-            {/* Bottom Bar */}
-            <footer style={styles.footer}>
-                {hasSelection && selectionInfo ? (
-                    <div style={styles.selectionBar}>
-                        <div style={styles.infoGroup}>
-                            <div style={styles.infoItem}>
-                                <span style={styles.label}>BLOCKS</span>
-                                <span style={styles.value}>{selectionInfo.count}</span>
-                            </div>
-                            <span style={styles.sep} />
-                            <div style={styles.infoItem}>
-                                <span style={styles.label}>SIZE</span>
-                                <span style={styles.value}>{selectionInfo.dimensions.width}×{selectionInfo.dimensions.height}</span>
-                            </div>
-                            <span style={styles.sep} />
-                            <div style={styles.infoItem}>
-                                <span style={styles.label}>COORD</span>
-                                <span style={styles.value}>({selectionInfo.coordinates.x},{selectionInfo.coordinates.y})</span>
-                            </div>
-                            <span style={styles.sep} />
-                            <div style={styles.infoItem}>
-                                <span style={styles.label}>UNCLAIMED</span>
-                                <span style={styles.value}>{selectionInfo.unclaimedCount}</span>
-                            </div>
-                            <span style={styles.sep} />
-                            <div style={styles.infoItem}>
-                                <span style={styles.label}>TAKEOVERS</span>
-                                <span style={{ ...styles.value, color: selectionInfo.ownedCount > 0 ? '#ff4444' : '#666' }}>
-                                    {selectionInfo.ownedCount}
-                                </span>
-                            </div>
-                            <span style={styles.sep} />
-                            <div style={styles.infoItem}>
-                                <span style={styles.label}>EST. PRICE</span>
-                                <span style={{ ...styles.value, color: '#00ff88', fontSize: '1rem' }}>
-                                    {selectionInfo.totalPrice.toLocaleString()} <span style={{ fontSize: '0.6rem' }}>$WEAVE</span>
-                                </span>
-                            </div>
-                        </div>
+                {/* Inspector Sidebar */}
+                <GridInspector />
+            </div>
 
-                        <div style={styles.btnGroup}>
-                            <button onClick={clearSelection} style={styles.clearBtn}>CLEAR</button>
-                            <button onClick={openPurchaseModal} style={styles.claimBtn}>CLAIM</button>
-                        </div>
-                    </div>
-                ) : (
-                    <div style={styles.statsBar}>
-                        <div style={styles.stat}><span style={styles.statLabel}>TOTAL</span><span style={styles.statVal}>10,000</span></div>
-                        <span style={styles.sep} />
-                        <div style={styles.stat}><span style={styles.statLabel}>CLAIMED</span><span style={{ ...styles.statVal, color: '#00ff88' }}>{claimedCount}</span></div>
-                        <span style={styles.sep} />
-                        <div style={styles.stat}><span style={styles.statLabel}>AVAILABLE</span><span style={{ ...styles.statVal, color: '#00f6ff' }}>{availableCount.toLocaleString()}</span></div>
-                        <span style={styles.sep} />
-                        <div style={styles.stat}><span style={styles.statLabel}>FLOOR</span><span style={styles.statVal}>1,000 <span style={{ color: '#00f6ff', fontSize: '0.6rem' }}>$WEAVE</span></span></div>
-                    </div>
-                )}
-            </footer>
-
+            {/* Purchase Modal */}
             <BlockPurchaseModal />
+
+            {/* Protocol Stats Footer */}
+            <footer style={styles.footer}>
+                <div style={styles.statItem}>
+                    <span style={styles.statLabel}>TOTAL BLOCKS</span>
+                    <span style={styles.statValue}>10,000</span>
+                </div>
+                <div style={styles.statDivider} />
+                <div style={styles.statItem}>
+                    <span style={styles.statLabel}>CLAIMED</span>
+                    <span style={{ ...styles.statValue, color: '#00ff88' }}>11</span>
+                </div>
+                <div style={styles.statDivider} />
+                <div style={styles.statItem}>
+                    <span style={styles.statLabel}>AVAILABLE</span>
+                    <span style={{ ...styles.statValue, color: '#00f6ff' }}>9,989</span>
+                </div>
+                <div style={styles.statDivider} />
+                <div style={styles.statItem}>
+                    <span style={styles.statLabel}>FLOOR PRICE</span>
+                    <span style={styles.statValue}>1,000 <span style={{ fontSize: '0.7rem', color: '#00f6ff' }}>$WEAVE</span></span>
+                </div>
+            </footer>
         </div>
     );
 }
 
-
-
 const styles = {
-    page: {
-        position: 'fixed',
-        inset: 0,
+    container: {
+        width: '100vw',
+        height: '100vh',
+        background: '#0a0a14',
         display: 'flex',
         flexDirection: 'column',
-        background: '#050510',
         fontFamily: "'Rajdhani', sans-serif",
         overflow: 'hidden',
     },
     header: {
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        padding: '8px 12px',
-        background: 'rgba(0,5,15,0.98)',
-        borderBottom: '1px solid rgba(0,246,255,0.15)',
+        justifyContent: 'space-between',
+        padding: '12px 20px',
+        background: 'rgba(0, 10, 20, 0.95)',
+        borderBottom: '1px solid rgba(0, 246, 255, 0.15)',
         flexShrink: 0,
-        minHeight: '48px',
+    },
+    headerLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '20px',
     },
     backBtn: {
-        background: 'rgba(0,20,40,0.8)',
-        border: '1px solid rgba(0,246,255,0.3)',
-        color: '#00f6ff',
-        padding: '6px 12px',
-        fontSize: '0.7rem',
+        background: 'none',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        color: 'rgba(255, 255, 255, 0.7)',
+        padding: '8px 14px',
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        letterSpacing: '0.1em',
         cursor: 'pointer',
-        fontFamily: "'Rajdhani',sans-serif",
-        fontWeight: 700,
+        borderRadius: '4px',
+        fontFamily: "'Rajdhani', sans-serif",
+        transition: 'all 0.2s',
     },
-    title: {
-        fontFamily: "'Orbitron',sans-serif",
-        fontSize: '1.1rem',
+    logoSection: {
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    logo: {
+        fontFamily: "'Orbitron', sans-serif",
+        fontSize: '1.4rem',
         fontWeight: 800,
         color: '#fff',
         margin: 0,
-        flex: 1,
+        letterSpacing: '0.05em',
+        textShadow: '0 0 20px rgba(255, 204, 0, 0.4)',
+    },
+    subtitle: {
+        fontSize: '0.6rem',
+        color: 'rgba(255, 204, 0, 0.7)',
+        letterSpacing: '0.25em',
+        marginTop: '2px',
+    },
+    headerCenter: {
+        display: 'flex',
+        alignItems: 'center',
     },
     statusBadge: {
         display: 'flex',
         alignItems: 'center',
-        gap: '6px',
-        padding: '4px 10px',
-        background: 'rgba(255,204,0,0.1)',
-        border: '1px solid rgba(255,204,0,0.4)',
+        gap: '8px',
+        padding: '6px 14px',
+        background: 'rgba(255, 204, 0, 0.1)',
+        border: '1px solid rgba(255, 204, 0, 0.4)',
+        borderRadius: '4px',
         color: '#ffcc00',
-        fontSize: '0.65rem',
+        fontSize: '0.7rem',
         fontWeight: 700,
+        letterSpacing: '0.15em',
     },
-    dot: {
+    statusDot: {
         width: '6px',
         height: '6px',
         borderRadius: '50%',
         background: '#ffcc00',
         animation: 'pulse 2s infinite',
     },
-    wallet: {
+    headerRight: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+    },
+    walletInfo: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '8px 14px',
+        background: 'rgba(0, 255, 136, 0.1)',
+        border: '1px solid rgba(0, 255, 136, 0.3)',
+        borderRadius: '4px',
+    },
+    walletAddress: {
         fontFamily: 'monospace',
-        fontSize: '0.7rem',
+        fontSize: '0.85rem',
         color: '#00ff88',
-        padding: '4px 10px',
-        background: 'rgba(0,255,136,0.1)',
-        border: '1px solid rgba(0,255,136,0.3)',
+    },
+    disconnectBtn: {
+        background: 'none',
+        border: 'none',
+        color: 'rgba(255, 255, 255, 0.5)',
+        cursor: 'pointer',
+        fontSize: '0.9rem',
+        padding: '0 4px',
     },
     connectBtn: {
-        background: 'rgba(153,69,255,0.1)',
+        background: 'rgba(153, 69, 255, 0.1)',
         border: '1px solid #9945FF',
         color: '#9945FF',
-        padding: '6px 14px',
-        fontSize: '0.7rem',
+        padding: '10px 20px',
+        fontSize: '0.8rem',
         fontWeight: 700,
+        letterSpacing: '0.1em',
         cursor: 'pointer',
-        fontFamily: "'Rajdhani',sans-serif",
+        borderRadius: '4px',
+        fontFamily: "'Rajdhani', sans-serif",
+        transition: 'all 0.2s',
     },
     main: {
         flex: 1,
+        display: 'flex',
+        overflow: 'hidden',
         position: 'relative',
-        minHeight: 0, // Important for flex child to shrink
     },
-    hint: {
+    canvasWrapper: {
+        flex: 1,
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    hints: {
         position: 'absolute',
-        bottom: '16px',
+        bottom: '20px',
         left: '50%',
         transform: 'translateX(-50%)',
-        background: 'rgba(0,0,0,0.7)',
-        padding: '6px 14px',
-        borderRadius: '16px',
-        fontSize: '0.7rem',
-        color: 'rgba(255,255,255,0.4)',
+        background: 'rgba(0, 0, 0, 0.7)',
+        padding: '8px 16px',
+        borderRadius: '20px',
+        fontSize: '0.75rem',
+        color: 'rgba(255, 255, 255, 0.5)',
         pointerEvents: 'none',
-        zIndex: 40,
+        zIndex: 50,
     },
     footer: {
-        flexShrink: 0,
-        background: 'rgba(0,5,15,0.98)',
-        borderTop: '1px solid rgba(0,246,255,0.15)',
-        padding: '10px 12px',
-        minHeight: '56px',
-    },
-    statsBar: {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '16px',
-        flexWrap: 'wrap',
+        gap: '30px',
+        padding: '12px 20px',
+        background: 'rgba(0, 10, 20, 0.95)',
+        borderTop: '1px solid rgba(0, 246, 255, 0.15)',
+        flexShrink: 0,
     },
-    stat: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
-    statLabel: { fontSize: '0.55rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em' },
-    statVal: { fontSize: '0.85rem', fontWeight: 700, color: '#fff' },
-    sep: { width: '1px', height: '28px', background: 'rgba(255,255,255,0.1)' },
-    selectionBar: {
+    statItem: {
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '12px',
-        flexWrap: 'wrap',
+        gap: '2px',
     },
-    infoGroup: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        flexWrap: 'wrap',
-        flex: 1,
+    statLabel: {
+        fontSize: '0.6rem',
+        color: 'rgba(255, 255, 255, 0.5)',
+        letterSpacing: '0.15em',
     },
-    infoItem: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
-    label: { fontSize: '0.5rem', color: 'rgba(0,246,255,0.7)', letterSpacing: '0.1em' },
-    value: { fontSize: '0.8rem', fontWeight: 700, color: '#fff', fontFamily: 'monospace' },
-    btnGroup: { display: 'flex', gap: '8px', flexShrink: 0 },
-    clearBtn: {
-        background: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        color: 'rgba(255,255,255,0.5)',
-        padding: '8px 16px',
-        fontSize: '0.75rem',
+    statValue: {
+        fontSize: '1rem',
         fontWeight: 700,
-        cursor: 'pointer',
-        fontFamily: "'Rajdhani',sans-serif",
+        color: '#fff',
     },
-    claimBtn: {
-        background: 'linear-gradient(135deg, rgba(0,246,255,0.2), rgba(0,246,255,0.1))',
-        border: '1px solid #00f6ff',
-        color: '#00f6ff',
-        padding: '8px 20px',
-        fontSize: '0.8rem',
-        fontWeight: 700,
-        cursor: 'pointer',
-        fontFamily: "'Rajdhani',sans-serif",
+    statDivider: {
+        width: '1px',
+        height: '30px',
+        background: 'rgba(255, 255, 255, 0.1)',
     },
 };
 

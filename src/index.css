@@ -143,12 +143,14 @@ body {
   background: rgba(0, 246, 255, 0.5);
 }
 
-#root,
-body,
-html,
+/* Only canvas needs touch-action: none for the game */
 canvas {
   touch-action: none;
+}
 
+#root,
+body,
+html {
   /* --- FIX: Disable text selection for these too --- */
   -webkit-user-select: none;
   -ms-user-select: none;
@@ -161,11 +163,12 @@ canvas {
 #root {
   width: 100vw;
   /* --- FIX: Use dynamic viewport height (dvh) --- */
-  height: 100dvh;
+  min-height: 100dvh;
   /* Fallback for older browsers */
-  height: -webkit-fill-available;
-  /* Prevent scrolling/bouncing on the root */
-  overflow: hidden;
+  min-height: -webkit-fill-available;
+  /* Allow scrolling on pages that need it */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* --- Button Overhaul (Original) --- */
@@ -215,4 +218,37 @@ button:hover::before {
 button:active {
   transform: translateY(1px) scale(0.98);
   background: rgba(0, 246, 255, 0.2);
+}
+
+/* Landing Page Container - Responsive */
+.landing-container {
+  position: relative;
+  width: 100vw;
+  min-height: 100vh;
+  background: #000510;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: 'Rajdhani', sans-serif;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Desktop: Lock to viewport, no scroll */
+@media (min-width: 768px) {
+  .landing-container {
+    height: 100vh;
+    min-height: unset;
+    overflow: hidden;
+  }
+}
+
+/* Protocol cards - responsive */
+.protocol-card {
+  width: calc(100vw - 48px) !important;
+}
+
+@media (min-width: 850px) {
+  .protocol-card {
+    width: 380px !important;
+  }
 }
