@@ -1,80 +1,58 @@
 import { create } from 'zustand';
 
-/**
- * Grid Store - State management for The Weave 3D billboard grid
- * 200x50 = 10,000 blocks
- */
 export const useGridStore = create((set, get) => ({
-    // Grid configuration
-    gridWidth: 200,
-    gridHeight: 50,
+    // CONFIG
+    gridSize: 100, // 100x100 = 10,000 Blocks
 
-    // Block data - 10,000 blocks
+    // STATE
     blocks: [],
-
-    // Currently hovered block
     hoveredBlock: null,
+    selectedBlock: null,
+    isDragging: false,
 
-    // Selected block IDs
-    selectedBlocks: [],
-
-    // Editor mode
-    editorMode: false,
-    cameraLocked: false,
-
-    // Initialize blocks (200x50 grid)
+    // ACTIONS
     initializeBlocks: () => {
-        const blocks = [];
-        const gridWidth = 200;
-        const gridHeight = 50;
+        const size = 100;
+        const blockData = [];
 
-        for (let z = 0; z < gridHeight; z++) {
-            for (let x = 0; x < gridWidth; x++) {
-                const id = z * gridWidth + x;
-                blocks.push({
-                    id,
-                    x,
-                    z,
-                    price: 1000,
-                    owner: null,
-                    texture: null,
-                });
-            }
+        // Generate Mock Data for the City
+        for (let i = 0; i < size * size; i++) {
+            const x = i % size;
+            const z = Math.floor(i / size);
+
+            // Simulation: 15% of blocks are "Owned" (Buildings)
+            const isOwned = Math.random() < 0.15;
+
+            // Price Calculation (Center is expensive)
+            const distFromCenter = Math.sqrt(Math.pow(x - size / 2, 2) + Math.pow(z - size / 2, 2));
+            const basePrice = Math.max(1000, 100000 - (distFromCenter * 1500));
+
+            blockData.push({
+                id: i,
+                x,
+                z,
+                isOwned,
+                owner: isOwned ? `0x${Math.random().toString(16).substr(2, 6)}...` : null,
+                price: Math.floor(basePrice),
+                // Visuals: Owned blocks are tall (0.5 to 3.0), Empty are flat (0.1)
+                height: isOwned ? Math.random() * 2.5 + 0.5 : 0.1,
+                // Colors: Cyan, Magenta, or Dark Void
+                color: isOwned
+                    ? (Math.random() > 0.5 ? [0, 246, 255] : [217, 70, 239])
+                    : [20, 25, 40]
+            });
         }
-
-        set({ blocks, gridWidth, gridHeight });
+        set({ blocks: blockData });
     },
 
-    // Set hovered block
-    setHoveredBlock: (blockId) => set({ hoveredBlock: blockId }),
+    setHoveredBlock: (id) => set({ hoveredBlock: id }),
 
-    // Select a single block
-    selectBlock: (blockId) => {
-        set({
-            selectedBlocks: [blockId],
-            editorMode: true,
-            cameraLocked: true,
-        });
-    },
-
-    // Toggle block in selection
-    toggleBlockSelection: (blockId) => {
-        const { selectedBlocks } = get();
-        const isSelected = selectedBlocks.includes(blockId);
-
-        if (isSelected) {
-            set({ selectedBlocks: selectedBlocks.filter(id => id !== blockId) });
-        } else {
-            set({ selectedBlocks: [...selectedBlocks, blockId] });
+    setSelectedBlock: (id) => {
+        const { blocks } = get();
+        if (id === null) {
+            set({ selectedBlock: null });
+            return;
         }
-    },
-
-    // Clear selection
-    clearSelection: () => {
-        set({
-            selectedBlocks: [],
-            editorMode: false,
-            cameraLocked: false,
-        });
+        set({ selectedBlock: blocks[id] });
     },
 }));
