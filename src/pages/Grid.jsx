@@ -1,302 +1,94 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-
-import GridCanvas from '../components/grid/GridCanvas';
-import GridTicker from '../components/grid/GridTicker';
-import GridInspector from '../components/grid/GridInspector';
-import GridControls from '../components/grid/GridControls';
-import BlockPurchaseModal from '../components/grid/BlockPurchaseModal';
+import React, { useEffect } from 'react';
+import { Canvas } from '@react-three/fiber';
+import WeaveScene from '../components/grid/WeaveScene';
+import WeaveCamera from '../components/grid/WeaveCamera';
+import WeaveTitle from '../components/grid/WeaveTitle';
+import ZoomControls from '../components/grid/ZoomControls';
+import { useGridStore } from '../stores/gridStore';
 
 /**
- * Grid Page - The Weave Digital Billboard
- * A tactical war room for digital real estate
+ * Grid Page - The Weave 3D billboard
  */
 function Grid() {
-    const navigate = useNavigate();
-    const { connected, publicKey, disconnect } = useWallet();
-    const { setVisible } = useWalletModal();
+    const initializeBlocks = useGridStore(s => s.initializeBlocks);
+    const blocks = useGridStore(s => s.blocks);
+
+    useEffect(() => {
+        if (blocks.length === 0) {
+            initializeBlocks();
+        }
+    }, [blocks.length, initializeBlocks]);
 
     return (
         <div style={styles.container}>
-            {/* Load fonts */}
+            {/* Fonts */}
             <style>
                 {`@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=Rajdhani:wght@500;600;700&display=swap');`}
-                {`
-          @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-          }
-          @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-        `}
             </style>
 
-            {/* Top Navigation Bar */}
-            <header style={styles.header}>
-                <div style={styles.headerLeft}>
-                    <button onClick={() => navigate('/')} style={styles.backBtn}>
-                        ← PORTAL
-                    </button>
-                    <div style={styles.logoSection}>
-                        <h1 style={styles.logo}>THE <span style={{ color: '#ffcc00' }}>WEAVE</span></h1>
-                        <div style={styles.subtitle}>DIGITAL TERRITORY PROTOCOL</div>
-                    </div>
-                </div>
+            {/* Three.js Canvas */}
+            <Canvas
+                orthographic
+                camera={{
+                    position: [0, 100, 0],
+                    zoom: 1,
+                    near: 0.1,
+                    far: 1000,
+                    up: [0, 0, -1],
+                }}
+                gl={{ antialias: true }}
+                dpr={[1, 1.5]}
+                style={{ background: 'linear-gradient(180deg, #0a0015 0%, #1a0a2e 40%, #2d1b4e 70%, #1a1a3e 100%)' }}
+            >
+                <WeaveCamera />
+                <WeaveScene />
+            </Canvas>
 
-                <div style={styles.headerCenter}>
-                    {/* Status indicator */}
-                    <div style={styles.statusBadge}>
-                        <span style={styles.statusDot} />
-                        INITIALIZING
-                    </div>
-                </div>
+            {/* UI */}
+            <WeaveTitle />
+            <ZoomControls />
 
-                <div style={styles.headerRight}>
-                    {connected ? (
-                        <div style={styles.walletInfo}>
-                            <span style={styles.walletAddress}>
-                                {publicKey?.toBase58().slice(0, 4)}....{publicKey?.toBase58().slice(-4)}
-                            </span>
-                            <button onClick={disconnect} style={styles.disconnectBtn}>
-                                ✕
-                            </button>
-                        </div>
-                    ) : (
-                        <button onClick={() => setVisible(true)} style={styles.connectBtn}>
-                            CONNECT WALLET
-                        </button>
-                    )}
-                </div>
-            </header>
-
-            {/* Ticker */}
-            <GridTicker />
-
-            {/* Main Content */}
-            <div style={styles.main}>
-                {/* Canvas Area */}
-                <div style={styles.canvasWrapper}>
-                    <GridCanvas />
-                    <GridControls />
-
-                    {/* Keyboard hints */}
-                    <div style={styles.hints}>
-                        Drag to pan • Scroll to zoom • Click to select • Ctrl+Click for multi-select
-                    </div>
-                </div>
-
-                {/* Inspector Sidebar */}
-                <GridInspector />
+            {/* Stats */}
+            <div style={styles.stats}>
+                10,000 BLOCKS • 0 CLAIMED
             </div>
 
-            {/* Purchase Modal */}
-            <BlockPurchaseModal />
-
-            {/* Protocol Stats Footer */}
-            <footer style={styles.footer}>
-                <div style={styles.statItem}>
-                    <span style={styles.statLabel}>TOTAL BLOCKS</span>
-                    <span style={styles.statValue}>10,000</span>
-                </div>
-                <div style={styles.statDivider} />
-                <div style={styles.statItem}>
-                    <span style={styles.statLabel}>CLAIMED</span>
-                    <span style={{ ...styles.statValue, color: '#00ff88' }}>11</span>
-                </div>
-                <div style={styles.statDivider} />
-                <div style={styles.statItem}>
-                    <span style={styles.statLabel}>AVAILABLE</span>
-                    <span style={{ ...styles.statValue, color: '#00f6ff' }}>9,989</span>
-                </div>
-                <div style={styles.statDivider} />
-                <div style={styles.statItem}>
-                    <span style={styles.statLabel}>FLOOR PRICE</span>
-                    <span style={styles.statValue}>1,000 <span style={{ fontSize: '0.7rem', color: '#00f6ff' }}>$WEAVE</span></span>
-                </div>
-            </footer>
+            {/* Hint */}
+            <div style={styles.hint}>
+                DRAG to pan • SCROLL to zoom
+            </div>
         </div>
     );
 }
 
 const styles = {
     container: {
+        position: 'relative',
         width: '100vw',
         height: '100vh',
-        background: '#0a0a14',
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: "'Rajdhani', sans-serif",
         overflow: 'hidden',
     },
-    header: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '12px 20px',
-        background: 'rgba(0, 10, 20, 0.95)',
-        borderBottom: '1px solid rgba(0, 246, 255, 0.15)',
-        flexShrink: 0,
-    },
-    headerLeft: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '20px',
-    },
-    backBtn: {
-        background: 'none',
-        border: '1px solid rgba(255, 255, 255, 0.2)',
-        color: 'rgba(255, 255, 255, 0.7)',
-        padding: '8px 14px',
-        fontSize: '0.75rem',
-        fontWeight: 600,
-        letterSpacing: '0.1em',
-        cursor: 'pointer',
-        borderRadius: '4px',
-        fontFamily: "'Rajdhani', sans-serif",
-        transition: 'all 0.2s',
-    },
-    logoSection: {
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    logo: {
-        fontFamily: "'Orbitron', sans-serif",
-        fontSize: '1.4rem',
-        fontWeight: 800,
-        color: '#fff',
-        margin: 0,
-        letterSpacing: '0.05em',
-        textShadow: '0 0 20px rgba(255, 204, 0, 0.4)',
-    },
-    subtitle: {
-        fontSize: '0.6rem',
-        color: 'rgba(255, 204, 0, 0.7)',
-        letterSpacing: '0.25em',
-        marginTop: '2px',
-    },
-    headerCenter: {
-        display: 'flex',
-        alignItems: 'center',
-    },
-    statusBadge: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '6px 14px',
-        background: 'rgba(255, 204, 0, 0.1)',
-        border: '1px solid rgba(255, 204, 0, 0.4)',
-        borderRadius: '4px',
-        color: '#ffcc00',
-        fontSize: '0.7rem',
-        fontWeight: 700,
-        letterSpacing: '0.15em',
-    },
-    statusDot: {
-        width: '6px',
-        height: '6px',
-        borderRadius: '50%',
-        background: '#ffcc00',
-        animation: 'pulse 2s infinite',
-    },
-    headerRight: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-    },
-    walletInfo: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '8px 14px',
-        background: 'rgba(0, 255, 136, 0.1)',
-        border: '1px solid rgba(0, 255, 136, 0.3)',
-        borderRadius: '4px',
-    },
-    walletAddress: {
-        fontFamily: 'monospace',
-        fontSize: '0.85rem',
-        color: '#00ff88',
-    },
-    disconnectBtn: {
-        background: 'none',
-        border: 'none',
-        color: 'rgba(255, 255, 255, 0.5)',
-        cursor: 'pointer',
-        fontSize: '0.9rem',
-        padding: '0 4px',
-    },
-    connectBtn: {
-        background: 'rgba(153, 69, 255, 0.1)',
-        border: '1px solid #9945FF',
-        color: '#9945FF',
-        padding: '10px 20px',
-        fontSize: '0.8rem',
-        fontWeight: 700,
-        letterSpacing: '0.1em',
-        cursor: 'pointer',
-        borderRadius: '4px',
-        fontFamily: "'Rajdhani', sans-serif",
-        transition: 'all 0.2s',
-    },
-    main: {
-        flex: 1,
-        display: 'flex',
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    canvasWrapper: {
-        flex: 1,
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    hints: {
+    stats: {
         position: 'absolute',
-        bottom: '20px',
+        bottom: '24px',
+        left: '24px',
+        fontSize: '0.75rem',
+        color: 'rgba(255, 255, 255, 0.4)',
+        letterSpacing: '0.1em',
+        fontFamily: "'Rajdhani', sans-serif",
+        fontWeight: 600,
+        zIndex: 100,
+    },
+    hint: {
+        position: 'absolute',
+        bottom: '24px',
         left: '50%',
         transform: 'translateX(-50%)',
-        background: 'rgba(0, 0, 0, 0.7)',
-        padding: '8px 16px',
-        borderRadius: '20px',
-        fontSize: '0.75rem',
-        color: 'rgba(255, 255, 255, 0.5)',
-        pointerEvents: 'none',
-        zIndex: 50,
-    },
-    footer: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '30px',
-        padding: '12px 20px',
-        background: 'rgba(0, 10, 20, 0.95)',
-        borderTop: '1px solid rgba(0, 246, 255, 0.15)',
-        flexShrink: 0,
-    },
-    statItem: {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '2px',
-    },
-    statLabel: {
-        fontSize: '0.6rem',
-        color: 'rgba(255, 255, 255, 0.5)',
-        letterSpacing: '0.15em',
-    },
-    statValue: {
-        fontSize: '1rem',
-        fontWeight: 700,
-        color: '#fff',
-    },
-    statDivider: {
-        width: '1px',
-        height: '30px',
-        background: 'rgba(255, 255, 255, 0.1)',
+        fontSize: '0.7rem',
+        color: 'rgba(255, 255, 255, 0.25)',
+        letterSpacing: '0.1em',
+        fontFamily: "'Rajdhani', sans-serif",
+        zIndex: 100,
     },
 };
 
