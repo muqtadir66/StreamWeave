@@ -24,7 +24,8 @@ body {
    ============================================ */
 :root {
   /* Primary Colors */
-  --weave-cyan: #00f6ff;
+  --weave-cyan: #ffcc00;
+  /* Updated to golden for The Weave theme */
   --weave-green: #00ff88;
   --weave-red: #ff4444;
   --weave-yellow: #ffcc00;
@@ -224,7 +225,7 @@ button::before {
   left: 0;
   width: 100%;
   height: 1px;
-  background: #00f6ff;
+  background: #ffcc00;
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 250ms ease-in-out;
@@ -232,7 +233,7 @@ button::before {
 
 button:hover {
   color: #fff;
-  background: rgba(0, 246, 255, 0.1);
+  background: rgba(255, 204, 0, 0.1);
 }
 
 button:hover::before {
@@ -241,7 +242,7 @@ button:hover::before {
 
 button:active {
   transform: translateY(1px) scale(0.98);
-  background: rgba(0, 246, 255, 0.2);
+  background: rgba(255, 204, 0, 0.2);
 }
 
 /* Landing Page Container - Responsive */
