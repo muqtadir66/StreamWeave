@@ -70,6 +70,7 @@ export const useGridStore = create((set, get) => ({
     // UI state
     inspectorOpen: true,
     purchaseModalOpen: false,
+    selectMode: false, // When true, tap to select instead of pan
 
     // Live feed
     recentTakeovers: mockTakeovers,
@@ -126,6 +127,64 @@ export const useGridStore = create((set, get) => ({
         return { selectedBlockIds: [...state.selectedBlockIds, blockId] };
     }),
 
+    // Select all blocks in a rectangle
+    selectRectangle: (x1, y1, x2, y2, addToExisting = false) => set(state => {
+        const minX = Math.max(0, Math.min(x1, x2));
+        const maxX = Math.min(99, Math.max(x1, x2));
+        const minY = Math.max(0, Math.min(y1, y2));
+        const maxY = Math.min(99, Math.max(y1, y2));
+
+        const newBlockIds = [];
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                newBlockIds.push(y * 100 + x);
+            }
+        }
+
+        if (addToExisting) {
+            // Add new blocks to existing selection (no duplicates)
+            const combined = [...state.selectedBlockIds];
+            newBlockIds.forEach(id => {
+                if (!combined.includes(id)) combined.push(id);
+            });
+            return { selectedBlockIds: combined };
+        }
+        return { selectedBlockIds: newBlockIds };
+    }),
+
+    // Move selection with arrow keys (expand = shift held, adds to selection)
+    moveSelection: (dx, dy, expand = false) => set(state => {
+        if (state.selectedBlockIds.length === 0) {
+            // No selection, start at center
+            return { selectedBlockIds: [50 * 100 + 50] };
+        }
+
+        // If multiple blocks selected and not expanding, do nothing to preserve selection
+        if (state.selectedBlockIds.length > 1 && !expand) {
+            return state;
+        }
+
+        // Get the last selected block and move from there
+        const lastId = state.selectedBlockIds[state.selectedBlockIds.length - 1];
+        const x = lastId % 100;
+        const y = Math.floor(lastId / 100);
+
+        const newX = Math.max(0, Math.min(99, x + dx));
+        const newY = Math.max(0, Math.min(99, y + dy));
+        const newId = newY * 100 + newX;
+
+        if (expand) {
+            // Add to selection if not already selected
+            if (state.selectedBlockIds.includes(newId)) {
+                return state;
+            }
+            return { selectedBlockIds: [...state.selectedBlockIds, newId] };
+        }
+
+        // Single selection - move to new block
+        return { selectedBlockIds: [newId] };
+    }),
+
     // Clear all selections
     clearSelection: () => set({ selectedBlockIds: [] }),
 
@@ -135,6 +194,10 @@ export const useGridStore = create((set, get) => ({
     hoverBlock: (blockId) => set({ hoveredBlockId: blockId }),
 
     toggleInspector: () => set(state => ({ inspectorOpen: !state.inspectorOpen })),
+
+    toggleSelectMode: () => set(state => ({ selectMode: !state.selectMode })),
+
+    setSelectMode: (mode) => set({ selectMode: mode }),
 
     openPurchaseModal: () => set({ purchaseModalOpen: true }),
 

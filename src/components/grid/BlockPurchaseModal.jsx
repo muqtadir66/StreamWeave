@@ -16,7 +16,7 @@ function BlockPurchaseModal() {
 
     const { connected } = useWallet();
 
-    const [selectedColor, setSelectedColor] = useState('#00f6ff');
+    const [selectedColor, setSelectedColor] = useState('#ffcc00');
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState(null);
 
@@ -27,7 +27,7 @@ function BlockPurchaseModal() {
     const singleBlock = isSingleBlock ? breakdown.blocks[0] : null;
 
     const colorOptions = [
-        '#00f6ff', // Cyan
+        '#ffcc00', // Cyan
         '#00ff88', // Green
         '#ff4444', // Red
         '#ffcc00', // Yellow
@@ -67,8 +67,8 @@ function BlockPurchaseModal() {
                 <div style={styles.header}>
                     <h2 style={styles.title}>
                         {isSingleBlock
-                            ? (singleBlock.type === 'takeover' ? '⚔️ HOSTILE TAKEOVER' : '🏴 CLAIM TERRITORY')
-                            : `🎯 ACQUIRE ${selectedBlockIds.length} BLOCKS`
+                            ? (singleBlock.type === 'takeover' ? 'HOSTILE TAKEOVER' : 'CLAIM TERRITORY')
+                            : `ACQUIRE ${selectedBlockIds.length} BLOCKS`
                         }
                     </h2>
                     <button onClick={closePurchaseModal} style={styles.closeBtn}>✕</button>
@@ -115,8 +115,8 @@ function BlockPurchaseModal() {
                                     <div key={block.id} style={styles.blockListItem}>
                                         <span style={{
                                             ...styles.blockListType,
-                                            background: block.type === 'claim' ? 'rgba(0, 246, 255, 0.2)' : 'rgba(255, 68, 68, 0.2)',
-                                            color: block.type === 'claim' ? '#00f6ff' : '#ff4444',
+                                            background: block.type === 'claim' ? 'rgba(255, 204, 0, 0.2)' : 'rgba(255, 68, 68, 0.2)',
+                                            color: block.type === 'claim' ? '#ffcc00' : '#ff4444',
                                         }}>
                                             {block.type === 'claim' ? 'NEW' : 'OWN'}
                                         </span>
@@ -186,7 +186,7 @@ function BlockPurchaseModal() {
                                 {breakdown.summary.newBlocks > 0 && (
                                     <div style={styles.breakdownRow}>
                                         <span>{breakdown.summary.newBlocks} claims × {BASE_PRICE.toLocaleString()}:</span>
-                                        <span style={{ color: '#00f6ff' }}>
+                                        <span style={{ color: '#ffcc00' }}>
                                             {(breakdown.summary.newBlocks * BASE_PRICE).toLocaleString()}
                                         </span>
                                     </div>
@@ -278,8 +278,8 @@ const styles = {
         maxWidth: '420px',
         maxHeight: '90vh',
         overflow: 'auto',
-        background: 'rgba(5, 15, 30, 0.98)',
-        border: '1px solid rgba(0, 246, 255, 0.3)',
+        background: 'rgba(12, 10, 6, 0.98)',
+        border: '1px solid rgba(255, 204, 0, 0.3)',
         borderRadius: '12px',
         fontFamily: "'Rajdhani', sans-serif",
         animation: 'slideUp 0.3s ease-out',
@@ -289,8 +289,8 @@ const styles = {
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '20px',
-        background: 'rgba(0, 246, 255, 0.08)',
-        borderBottom: '1px solid rgba(0, 246, 255, 0.2)',
+        background: 'rgba(255, 204, 0, 0.08)',
+        borderBottom: '1px solid rgba(255, 204, 0, 0.2)',
         position: 'sticky',
         top: 0,
     },
@@ -382,7 +382,7 @@ const styles = {
         fontSize: '0.75rem',
     },
     blockListPrice: {
-        color: '#00f6ff',
+        color: '#ffcc00',
         fontWeight: 600,
         fontSize: '0.75rem',
     },
@@ -399,7 +399,7 @@ const styles = {
     },
     label: {
         fontSize: '0.7rem',
-        color: 'rgba(0, 246, 255, 0.8)',
+        color: 'rgba(255, 204, 0, 0.8)',
         letterSpacing: '0.15em',
         fontWeight: 600,
     },
@@ -430,8 +430,8 @@ const styles = {
         color: 'rgba(0, 0, 0, 0.5)',
     },
     priceSection: {
-        background: 'rgba(0, 246, 255, 0.05)',
-        border: '1px solid rgba(0, 246, 255, 0.2)',
+        background: 'rgba(255, 204, 0, 0.05)',
+        border: '1px solid rgba(255, 204, 0, 0.2)',
         borderRadius: '8px',
         padding: '16px',
         textAlign: 'center',
@@ -440,13 +440,13 @@ const styles = {
         fontFamily: "'Orbitron', monospace",
         fontSize: '1.8rem',
         fontWeight: 700,
-        color: '#00f6ff',
+        color: '#ffcc00',
         marginTop: '8px',
-        textShadow: '0 0 20px rgba(0, 246, 255, 0.5)',
+        textShadow: '0 0 20px rgba(255, 204, 0, 0.5)',
     },
     unit: {
         fontSize: '0.8rem',
-        color: 'rgba(0, 246, 255, 0.7)',
+        color: 'rgba(255, 204, 0, 0.7)',
     },
     priceBreakdown: {
         marginTop: '12px',
@@ -472,10 +472,10 @@ const styles = {
     purchaseBtn: {
         width: '100%',
         padding: '16px',
-        background: 'linear-gradient(135deg, rgba(0, 246, 255, 0.2), rgba(0, 246, 255, 0.1))',
-        border: '2px solid #00f6ff',
+        background: 'linear-gradient(135deg, rgba(255, 204, 0, 0.2), rgba(255, 204, 0, 0.1))',
+        border: '2px solid #ffcc00',
         borderRadius: '8px',
-        color: '#00f6ff',
+        color: '#ffcc00',
         fontSize: '1rem',
         fontWeight: 700,
         letterSpacing: '0.15em',

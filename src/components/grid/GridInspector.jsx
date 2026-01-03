@@ -54,7 +54,7 @@ function GridInspector() {
             {selectedBlockIds.length === 0 ? (
                 // No selection
                 <div style={styles.emptyState}>
-                    <div style={styles.emptyIcon}>🎯</div>
+                    <div style={styles.emptyIcon}>⊞</div>
                     <div style={styles.emptyText}>
                         Select blocks on the grid
                     </div>
@@ -63,220 +63,224 @@ function GridInspector() {
                     </div>
                 </div>
             ) : selectedBlockIds.length === 1 ? (
-                // Single block selected
-                <div style={styles.content}>
-                    {/* Block ID & Coordinates */}
-                    <div style={styles.section}>
-                        <div style={styles.blockId}>#{selectedBlockIds[0]}</div>
-                        <div style={styles.coords}>
-                            COORDS: ({singleBlock?.x}, {singleBlock?.y})
+                // Single block selected - use fragment for content + footer
+                <>
+                    <div style={styles.content}>
+                        {/* Block ID & Coordinates */}
+                        <div style={styles.section}>
+                            <div style={styles.blockId}>#{selectedBlockIds[0]}</div>
+                            <div style={styles.coords}>
+                                COORDS: ({singleBlock?.x}, {singleBlock?.y})
+                            </div>
                         </div>
+
+                        <div style={styles.divider} />
+
+                        {/* Ownership */}
+                        <div style={styles.section}>
+                            <div style={styles.label}>OWNER</div>
+                            <div style={{
+                                ...styles.value,
+                                color: singleBlock?.owner ? '#00ff88' : '#666',
+                            }}>
+                                {singleBlock?.owner || 'UNCLAIMED'}
+                            </div>
+                        </div>
+
+                        <div style={styles.divider} />
+
+                        {/* Current Price */}
+                        <div style={styles.section}>
+                            <div style={styles.label}>CURRENT PRICE</div>
+                            <div style={styles.value}>
+                                {singleBlock?.price?.toLocaleString() || BASE_PRICE.toLocaleString()}
+                                <span style={styles.unit}> $WEAVE</span>
+                            </div>
+                        </div>
+
+                        {/* Decay Timer (only for owned blocks) */}
+                        {singleBlock?.owner && singleDecayInfo && (
+                            <>
+                                <div style={styles.divider} />
+                                <div style={styles.section}>
+                                    <div style={styles.label}>DECAY STATUS</div>
+                                    {singleDecayInfo.isDecaying ? (
+                                        <div style={{ ...styles.value, color: '#ff4444' }}>
+                                            DECAYING: -{singleDecayInfo.decayPercent}%
+                                        </div>
+                                    ) : (
+                                        <div style={{ ...styles.value, color: '#ffcc00' }}>
+                                            {singleDecayInfo.daysRemaining}d {singleDecayInfo.hoursRemaining}h until decay
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        <div style={styles.divider} />
+
+                        {/* Takeover Cost */}
+                        <div style={styles.section}>
+                            <div style={styles.label}>
+                                {singleBlock?.owner ? 'TAKEOVER COST' : 'CLAIM COST'}
+                            </div>
+                            <div style={{ ...styles.value, color: '#ffcc00', fontSize: '1.4rem' }}>
+                                {(singleTakeoverPrice || BASE_PRICE).toLocaleString()}
+                                <span style={styles.unit}> $WEAVE</span>
+                            </div>
+                            {singleBlock?.owner && (
+                                <div style={styles.breakdown}>
+                                    1.5× current price
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Block Preview */}
+                        {singleBlock?.color && (
+                            <>
+                                <div style={styles.divider} />
+                                <div style={styles.section}>
+                                    <div style={styles.label}>BLOCK PREVIEW</div>
+                                    <div style={{
+                                        ...styles.preview,
+                                        background: singleBlock.color,
+                                        boxShadow: `0 0 20px ${singleBlock.color}40`,
+                                    }} />
+                                </div>
+                            </>
+                        )}
                     </div>
 
-                    <div style={styles.divider} />
+                    {/* Fixed footer for button - always visible */}
+                    <div style={styles.footer}>
+                        <button
+                            onClick={() => openPurchaseModal()}
+                            style={styles.actionBtn}
+                        >
+                            {singleBlock?.owner ? 'HOSTILE TAKEOVER' : 'CLAIM BLOCK'}
+                        </button>
 
-                    {/* Ownership */}
-                    <div style={styles.section}>
-                        <div style={styles.label}>OWNER</div>
-                        <div style={{
-                            ...styles.value,
-                            color: singleBlock?.owner ? '#00ff88' : '#666',
-                        }}>
-                            {singleBlock?.owner || 'UNCLAIMED'}
+                        {/* Info Text */}
+                        <div style={styles.infoText}>
+                            {singleBlock?.owner ? (
+                                <>
+                                    Previous owner receives <span style={{ color: '#00ff88' }}>1.2×</span> their purchase price.
+                                    Protocol receives <span style={{ color: '#ff4444' }}>0.3×</span> as tax.
+                                </>
+                            ) : (
+                                <>
+                                    First-time claims cost <span style={{ color: '#ffcc00' }}>{BASE_PRICE.toLocaleString()} WEAVE</span>.
+                                </>
+                            )}
                         </div>
                     </div>
-
-                    <div style={styles.divider} />
-
-                    {/* Current Price */}
-                    <div style={styles.section}>
-                        <div style={styles.label}>CURRENT PRICE</div>
-                        <div style={styles.value}>
-                            {singleBlock?.price?.toLocaleString() || BASE_PRICE.toLocaleString()}
-                            <span style={styles.unit}> $WEAVE</span>
+                </>
+            ) : (
+                // Multiple blocks selected - use fragment for content + footer
+                <>
+                    <div style={styles.content}>
+                        {/* Selection Summary */}
+                        <div style={styles.section}>
+                            <div style={styles.blockId}>{breakdown.summary.total} BLOCKS</div>
+                            <div style={styles.coords}>
+                                MULTI-SELECTION ACTIVE
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Decay Timer (only for owned blocks) */}
-                    {singleBlock?.owner && singleDecayInfo && (
-                        <>
-                            <div style={styles.divider} />
-                            <div style={styles.section}>
-                                <div style={styles.label}>DECAY STATUS</div>
-                                {singleDecayInfo.isDecaying ? (
-                                    <div style={{ ...styles.value, color: '#ff4444' }}>
-                                        DECAYING: -{singleDecayInfo.decayPercent}%
-                                    </div>
-                                ) : (
-                                    <div style={{ ...styles.value, color: '#ffcc00' }}>
-                                        {singleDecayInfo.daysRemaining}d {singleDecayInfo.hoursRemaining}h until decay
+                        <div style={styles.divider} />
+
+                        {/* Selection Breakdown */}
+                        <div style={styles.section}>
+                            <div style={styles.label}>SELECTION BREAKDOWN</div>
+                            <div style={styles.breakdownGrid}>
+                                <div style={styles.breakdownItem}>
+                                    <span style={{ color: '#ffcc00' }}>{breakdown.summary.newBlocks}</span>
+                                    <span style={styles.breakdownLabel}>Unclaimed</span>
+                                </div>
+                                <div style={styles.breakdownItem}>
+                                    <span style={{ color: '#ff4444' }}>{breakdown.summary.ownedBlocks}</span>
+                                    <span style={styles.breakdownLabel}>Takeovers</span>
+                                </div>
+                                {breakdown.summary.decayingBlocks > 0 && (
+                                    <div style={styles.breakdownItem}>
+                                        <span style={{ color: '#ffcc00' }}>{breakdown.summary.decayingBlocks}</span>
+                                        <span style={styles.breakdownLabel}>Decaying</span>
                                     </div>
                                 )}
                             </div>
-                        </>
-                    )}
-
-                    <div style={styles.divider} />
-
-                    {/* Takeover Cost */}
-                    <div style={styles.section}>
-                        <div style={styles.label}>
-                            {singleBlock?.owner ? 'TAKEOVER COST' : 'CLAIM COST'}
                         </div>
-                        <div style={{ ...styles.value, color: '#00f6ff', fontSize: '1.4rem' }}>
-                            {(singleTakeoverPrice || BASE_PRICE).toLocaleString()}
-                            <span style={styles.unit}> $WEAVE</span>
-                        </div>
-                        {singleBlock?.owner && (
-                            <div style={styles.breakdown}>
-                                1.5× current price
+
+                        <div style={styles.divider} />
+
+                        {/* Block List */}
+                        <div style={styles.section}>
+                            <div style={styles.label}>SELECTED BLOCKS</div>
+                            <div style={styles.blockList}>
+                                {breakdown.blocks.slice(0, 10).map((block, idx) => (
+                                    <div key={block.id} style={styles.blockListItem}>
+                                        <span style={styles.blockListNumber}>{idx + 1}.</span>
+                                        <span style={styles.blockListCoord}>
+                                            #{block.id} ({block.x}, {block.y})
+                                        </span>
+                                        <span style={{
+                                            ...styles.blockListPrice,
+                                            color: block.type === 'claim' ? '#ffcc00' : '#ff4444'
+                                        }}>
+                                            {block.takeoverPrice.toLocaleString()}
+                                        </span>
+                                    </div>
+                                ))}
+                                {breakdown.blocks.length > 10 && (
+                                    <div style={styles.moreBlocks}>
+                                        +{breakdown.blocks.length - 10} more blocks...
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
+                        </div>
 
-                    {/* Block Preview */}
-                    {singleBlock?.color && (
-                        <>
-                            <div style={styles.divider} />
-                            <div style={styles.section}>
-                                <div style={styles.label}>BLOCK PREVIEW</div>
-                                <div style={{
-                                    ...styles.preview,
-                                    background: singleBlock.color,
-                                    boxShadow: `0 0 20px ${singleBlock.color}40`,
-                                }} />
+                        <div style={styles.divider} />
+
+                        {/* Total Price */}
+                        <div style={styles.totalSection}>
+                            <div style={styles.label}>TOTAL COST</div>
+                            <div style={styles.totalPrice}>
+                                {breakdown.summary.totalPrice.toLocaleString()}
+                                <span style={styles.unit}> $WEAVE</span>
                             </div>
-                        </>
-                    )}
-
-                    <div style={styles.divider} />
-
-                    {/* Action Button */}
-                    <button
-                        onClick={() => openPurchaseModal()}
-                        style={styles.actionBtn}
-                    >
-                        {singleBlock?.owner ? '⚔️ HOSTILE TAKEOVER' : '🏴 CLAIM BLOCK'}
-                    </button>
-
-                    {/* Info Text */}
-                    <div style={styles.infoText}>
-                        {singleBlock?.owner ? (
-                            <>
-                                Previous owner receives <span style={{ color: '#00ff88' }}>1.2×</span> their purchase price.
-                                Protocol receives <span style={{ color: '#ff4444' }}>0.3×</span> as tax.
-                            </>
-                        ) : (
-                            <>
-                                First-time claims cost <span style={{ color: '#00f6ff' }}>{BASE_PRICE.toLocaleString()} WEAVE</span>.
-                            </>
-                        )}
-                    </div>
-                </div>
-            ) : (
-                // Multiple blocks selected
-                <div style={styles.content}>
-                    {/* Selection Summary */}
-                    <div style={styles.section}>
-                        <div style={styles.blockId}>{breakdown.summary.total} BLOCKS</div>
-                        <div style={styles.coords}>
-                            MULTI-SELECTION ACTIVE
-                        </div>
-                    </div>
-
-                    <div style={styles.divider} />
-
-                    {/* Selection Breakdown */}
-                    <div style={styles.section}>
-                        <div style={styles.label}>SELECTION BREAKDOWN</div>
-                        <div style={styles.breakdownGrid}>
-                            <div style={styles.breakdownItem}>
-                                <span style={{ color: '#00f6ff' }}>{breakdown.summary.newBlocks}</span>
-                                <span style={styles.breakdownLabel}>Unclaimed</span>
+                            <div style={styles.priceNote}>
+                                {breakdown.summary.newBlocks > 0 && (
+                                    <div>Claims: {(breakdown.summary.newBlocks * BASE_PRICE).toLocaleString()} WEAVE</div>
+                                )}
+                                {breakdown.summary.ownedBlocks > 0 && (
+                                    <div>Takeovers: {(breakdown.summary.totalPrice - (breakdown.summary.newBlocks * BASE_PRICE)).toLocaleString()} WEAVE</div>
+                                )}
                             </div>
-                            <div style={styles.breakdownItem}>
-                                <span style={{ color: '#ff4444' }}>{breakdown.summary.ownedBlocks}</span>
-                                <span style={styles.breakdownLabel}>Takeovers</span>
-                            </div>
-                            {breakdown.summary.decayingBlocks > 0 && (
-                                <div style={styles.breakdownItem}>
-                                    <span style={{ color: '#ffcc00' }}>{breakdown.summary.decayingBlocks}</span>
-                                    <span style={styles.breakdownLabel}>Decaying</span>
-                                </div>
-                            )}
                         </div>
                     </div>
 
-                    <div style={styles.divider} />
+                    {/* Fixed footer for buttons - always visible */}
+                    <div style={styles.footer}>
+                        <button
+                            onClick={() => openPurchaseModal()}
+                            style={styles.actionBtn}
+                        >
+                            ACQUIRE {breakdown.summary.total} BLOCKS
+                        </button>
 
-                    {/* Block List */}
-                    <div style={styles.section}>
-                        <div style={styles.label}>SELECTED BLOCKS</div>
-                        <div style={styles.blockList}>
-                            {breakdown.blocks.slice(0, 10).map((block, idx) => (
-                                <div key={block.id} style={styles.blockListItem}>
-                                    <span style={styles.blockListNumber}>{idx + 1}.</span>
-                                    <span style={styles.blockListCoord}>
-                                        #{block.id} ({block.x}, {block.y})
-                                    </span>
-                                    <span style={{
-                                        ...styles.blockListPrice,
-                                        color: block.type === 'claim' ? '#00f6ff' : '#ff4444'
-                                    }}>
-                                        {block.takeoverPrice.toLocaleString()}
-                                    </span>
-                                </div>
-                            ))}
-                            {breakdown.blocks.length > 10 && (
-                                <div style={styles.moreBlocks}>
-                                    +{breakdown.blocks.length - 10} more blocks...
-                                </div>
-                            )}
+                        <button
+                            onClick={clearSelection}
+                            style={styles.clearBtn}
+                        >
+                            CLEAR SELECTION
+                        </button>
+
+                        {/* Info Text */}
+                        <div style={styles.infoText}>
+                            Ctrl+Click to add/remove blocks from selection.
+                            Total includes takeover prices (1.5×) and new block claims.
                         </div>
                     </div>
-
-                    <div style={styles.divider} />
-
-                    {/* Total Price */}
-                    <div style={styles.totalSection}>
-                        <div style={styles.label}>TOTAL COST</div>
-                        <div style={styles.totalPrice}>
-                            {breakdown.summary.totalPrice.toLocaleString()}
-                            <span style={styles.unit}> $WEAVE</span>
-                        </div>
-                        <div style={styles.priceNote}>
-                            {breakdown.summary.newBlocks > 0 && (
-                                <div>Claims: {(breakdown.summary.newBlocks * BASE_PRICE).toLocaleString()} WEAVE</div>
-                            )}
-                            {breakdown.summary.ownedBlocks > 0 && (
-                                <div>Takeovers: {(breakdown.summary.totalPrice - (breakdown.summary.newBlocks * BASE_PRICE)).toLocaleString()} WEAVE</div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div style={styles.divider} />
-
-                    {/* Action Buttons */}
-                    <button
-                        onClick={() => openPurchaseModal()}
-                        style={styles.actionBtn}
-                    >
-                        🎯 ACQUIRE {breakdown.summary.total} BLOCKS
-                    </button>
-
-                    <button
-                        onClick={clearSelection}
-                        style={styles.clearBtn}
-                    >
-                        CLEAR SELECTION
-                    </button>
-
-                    {/* Info Text */}
-                    <div style={styles.infoText}>
-                        Ctrl+Click to add/remove blocks from selection.
-                        Total includes takeover prices (1.5×) and new block claims.
-                    </div>
-                </div>
+                </>
             )}
         </div>
     );
@@ -285,27 +289,30 @@ function GridInspector() {
 const styles = {
     container: {
         width: '280px',
-        background: 'rgba(0, 15, 30, 0.95)',
-        borderLeft: '1px solid rgba(0, 246, 255, 0.2)',
+        height: '100%',
+        background: 'rgba(15, 12, 8, 0.95)',
+        borderLeft: '1px solid rgba(255, 204, 0, 0.2)',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: "'Rajdhani', sans-serif",
         flexShrink: 0,
+        overflow: 'hidden',
     },
     header: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '16px',
-        borderBottom: '1px solid rgba(0, 246, 255, 0.2)',
-        background: 'rgba(0, 246, 255, 0.05)',
+        padding: '12px 16px',
+        borderBottom: '1px solid rgba(255, 204, 0, 0.2)',
+        background: 'rgba(255, 204, 0, 0.05)',
+        flexShrink: 0,
     },
     title: {
-        margin: 0,
-        fontSize: '0.85rem',
-        fontWeight: 700,
+        color: '#ffcc00',
+        fontSize: '0.9rem',
+        fontWeight: 600,
         letterSpacing: '0.15em',
-        color: '#00f6ff',
+        margin: 0,
     },
     closeBtn: {
         background: 'none',
@@ -320,11 +327,11 @@ const styles = {
         right: '0',
         top: '50%',
         transform: 'translateY(-50%)',
-        background: 'rgba(0, 15, 30, 0.95)',
-        border: '1px solid rgba(0, 246, 255, 0.3)',
+        background: 'rgba(15, 12, 8, 0.95)',
+        border: '1px solid rgba(255, 204, 0, 0.3)',
         borderRight: 'none',
         borderRadius: '4px 0 0 4px',
-        color: '#00f6ff',
+        color: '#ffcc00',
         padding: '12px 8px',
         cursor: 'pointer',
         writingMode: 'vertical-rl',
@@ -332,13 +339,24 @@ const styles = {
         letterSpacing: '0.1em',
         fontWeight: 700,
     },
+    footer: {
+        padding: '16px',
+        borderTop: '1px solid rgba(255, 204, 0, 0.2)',
+        background: 'rgba(15, 12, 8, 0.98)',
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+    },
     content: {
         padding: '16px',
+        paddingBottom: '8px',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        overflow: 'auto',
+        overflowY: 'auto',
         flex: 1,
+        minHeight: 0,
     },
     section: {
         display: 'flex',
@@ -359,7 +377,7 @@ const styles = {
     },
     label: {
         fontSize: '0.65rem',
-        color: 'rgba(0, 246, 255, 0.7)',
+        color: 'rgba(255, 204, 0, 0.7)',
         letterSpacing: '0.15em',
         fontWeight: 600,
     },
@@ -370,7 +388,7 @@ const styles = {
     },
     unit: {
         fontSize: '0.7rem',
-        color: '#00f6ff',
+        color: '#ffcc00',
     },
     breakdown: {
         fontSize: '0.7rem',
@@ -435,8 +453,8 @@ const styles = {
         padding: '4px',
     },
     totalSection: {
-        background: 'rgba(0, 246, 255, 0.08)',
-        border: '1px solid rgba(0, 246, 255, 0.2)',
+        background: 'rgba(255, 204, 0, 0.08)',
+        border: '1px solid rgba(255, 204, 0, 0.2)',
         borderRadius: '8px',
         padding: '12px',
         textAlign: 'center',
@@ -445,9 +463,9 @@ const styles = {
         fontFamily: "'Orbitron', monospace",
         fontSize: '1.6rem',
         fontWeight: 700,
-        color: '#00f6ff',
+        color: '#ffcc00',
         marginTop: '4px',
-        textShadow: '0 0 15px rgba(0, 246, 255, 0.5)',
+        textShadow: '0 0 15px rgba(255, 204, 0, 0.5)',
     },
     priceNote: {
         fontSize: '0.7rem',
@@ -468,10 +486,10 @@ const styles = {
     actionBtn: {
         width: '100%',
         padding: '14px',
-        background: 'rgba(0, 246, 255, 0.1)',
-        border: '1px solid #00f6ff',
+        background: 'rgba(255, 204, 0, 0.1)',
+        border: '1px solid #ffcc00',
         borderRadius: '4px',
-        color: '#00f6ff',
+        color: '#ffcc00',
         fontSize: '0.9rem',
         fontWeight: 700,
         letterSpacing: '0.1em',

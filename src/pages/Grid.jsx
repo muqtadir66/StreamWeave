@@ -85,7 +85,7 @@ function Grid() {
 
                     {/* Keyboard hints */}
                     <div style={styles.hints}>
-                        Drag to pan • Scroll to zoom • Click to select • Ctrl+Click for multi-select
+                        Scroll/Pinch to zoom • Double-click+drag to select • Shift+Arrow to expand • SELECT mode for touch
                     </div>
                 </div>
 
@@ -110,12 +110,12 @@ function Grid() {
                 <div style={styles.statDivider} />
                 <div style={styles.statItem}>
                     <span style={styles.statLabel}>AVAILABLE</span>
-                    <span style={{ ...styles.statValue, color: '#00f6ff' }}>9,989</span>
+                    <span style={{ ...styles.statValue, color: '#ffcc00' }}>9,989</span>
                 </div>
                 <div style={styles.statDivider} />
                 <div style={styles.statItem}>
                     <span style={styles.statLabel}>FLOOR PRICE</span>
-                    <span style={styles.statValue}>1,000 <span style={{ fontSize: '0.7rem', color: '#00f6ff' }}>$WEAVE</span></span>
+                    <span style={styles.statValue}>1,000 <span style={{ fontSize: '0.7rem', color: '#ffcc00' }}>$WEAVE</span></span>
                 </div>
             </footer>
         </div>
@@ -126,7 +126,7 @@ const styles = {
     container: {
         width: '100vw',
         height: '100vh',
-        background: '#0a0a14',
+        background: '#0d0a08',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: "'Rajdhani', sans-serif",
@@ -137,8 +137,8 @@ const styles = {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '12px 20px',
-        background: 'rgba(0, 10, 20, 0.95)',
-        borderBottom: '1px solid rgba(0, 246, 255, 0.15)',
+        background: 'rgba(10, 8, 5, 0.95)',
+        borderBottom: '1px solid rgba(255, 204, 0, 0.15)',
         flexShrink: 0,
     },
     headerLeft: {
@@ -273,8 +273,8 @@ const styles = {
         justifyContent: 'center',
         gap: '30px',
         padding: '12px 20px',
-        background: 'rgba(0, 10, 20, 0.95)',
-        borderTop: '1px solid rgba(0, 246, 255, 0.15)',
+        background: 'rgba(10, 8, 5, 0.95)',
+        borderTop: '1px solid rgba(255, 204, 0, 0.15)',
         flexShrink: 0,
     },
     statItem: {

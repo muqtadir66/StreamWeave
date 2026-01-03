@@ -88,8 +88,8 @@ const styles = {
     container: {
         display: 'flex',
         alignItems: 'center',
-        background: 'rgba(0, 10, 20, 0.95)',
-        borderBottom: '1px solid rgba(0, 246, 255, 0.2)',
+        background: 'rgba(10, 8, 5, 0.95)',
+        borderBottom: '1px solid rgba(255, 204, 0, 0.2)',
         padding: '10px 16px',
         overflow: 'hidden',
         fontFamily: "'Rajdhani', sans-serif",
@@ -139,7 +139,7 @@ const styles = {
         fontWeight: 600,
     },
     tickerTime: {
-        color: 'rgba(0, 246, 255, 0.7)',
+        color: 'rgba(255, 204, 0, 0.7)',
         fontSize: '0.75rem',
         fontWeight: 500,
     },

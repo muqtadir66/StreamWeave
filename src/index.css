@@ -32,21 +32,45 @@ body {
   --weave-magenta: #ff00ff;
   --weave-orange: #ff8800;
 
-  /* Backgrounds */
+  /* Backgrounds - warm brown tones */
   --bg-void: #000000;
-  --bg-deep: #0a0a14;
-  --bg-panel: rgba(10, 15, 30, 0.85);
-  --bg-dark: rgba(0, 10, 20, 0.95);
+  --bg-deep: #0d0a08;
+  --bg-panel: rgba(15, 12, 8, 0.85);
+  --bg-dark: rgba(10, 8, 5, 0.95);
 
-  /* Glass Effect */
-  --glass-bg: rgba(0, 20, 40, 0.6);
-  --glass-border: rgba(0, 246, 255, 0.2);
+  /* Glass Effect - golden tint */
+  --glass-bg: rgba(20, 15, 10, 0.6);
+  --glass-border: rgba(255, 204, 0, 0.2);
   --glass-blur: blur(12px);
 
   /* Typography */
   --font-display: 'Orbitron', sans-serif;
   --font-body: 'Rajdhani', 'Segoe UI', sans-serif;
   --font-mono: 'Consolas', 'Monaco', monospace;
+}
+
+/* Golden Scrollbar Styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 204, 0, 0.5) rgba(15, 12, 8, 0.5);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(15, 12, 8, 0.5);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 204, 0, 0.5);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 204, 0, 0.7);
 }
 
 /* Glitch Text Effect */
